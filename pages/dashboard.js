@@ -1,12 +1,55 @@
 // Percorso: /pages/dashboard.js
-// Scopo: Dashboard con header compatto e widget dinamici (menu tendina)
+// Scopo: Dashboard con header compatto, widget dinamici selezionabili e Widget Messaggi (robusto)
 // Autore: ChatGPT
 // Ultima modifica: 22/05/2025
-// Note: Header ottimizzato + menu scelta widget dinamici
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+// --- Widget Messaggi (robusto su errore API) ---
+function WidgetMessaggi({ limit = 5 }) {
+  const [msgs, setMsgs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/messages?box=inbox`)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setMsgs(data.slice(0, limit));
+        } else {
+          setMsgs([]);
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [limit]);
+
+  return (
+    <div className="bg-white rounded-2xl shadow p-4 min-h-[150px] flex flex-col">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-lg font-bold text-blue-800">📧 Messaggi</span>
+        <Link href="/messages" className="text-xs text-blue-700 hover:underline">Vedi tutti</Link>
+      </div>
+      {loading ? (
+        <div className="text-sm text-gray-500">Caricamento...</div>
+      ) : msgs.length === 0 ? (
+        <div className="text-sm text-gray-500">Nessun messaggio</div>
+      ) : (
+        <ul className="divide-y text-sm">
+          {msgs.map(m => (
+            <li key={m.id} className={"py-2 flex items-center gap-2 " + (m.read ? "" : "font-bold bg-blue-50") }>
+              <span className="flex-1 cursor-pointer truncate" title={m.subject}>{m.subject}</span>
+              {!m.read && <span className="inline-block w-2 h-2 bg-blue-600 rounded-full mr-2"></span>}
+              <span className="text-xs text-gray-500">{m.created_at?.split('T')[0]}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// --- Definizione e mapping widget ---
 const defaultWidgets = {
   notifications: {
     label: "Notifiche recenti",
@@ -33,6 +76,12 @@ const defaultWidgets = {
     icon: "📝",
     color: "text-yellow-700"
   },
+  // Widget messaggi
+  messages: {
+    label: "Messaggi ricevuti",
+    icon: "📧",
+    color: "text-blue-800"
+  }
 };
 
 export default function Dashboard() {
@@ -42,7 +91,8 @@ export default function Dashboard() {
     users: true,
     files: true,
     downloads: false,
-    note: false
+    note: false,
+    messages: true // di default il widget messaggi è attivo
   });
   const [user, setUser] = useState(null);
   const [notifications, setNotifications] = useState([]);
@@ -147,6 +197,8 @@ export default function Dashboard() {
             />
           </div>
         );
+      case "messages":
+        return <WidgetMessaggi key={key} limit={5} />;
       default:
         return null;
     }

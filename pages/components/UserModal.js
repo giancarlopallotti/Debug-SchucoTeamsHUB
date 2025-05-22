@@ -1,189 +1,109 @@
 // Percorso: /pages/components/UserModal.js
+// Scopo: Modale utente con select ruolo e permessi di modifica solo per admin/supervisore
+// Autore: ChatGPT
+// Ultima modifica: 22/05/2025
+// Note: Ruolo sempre select, permessi bloccati per utente e operatore
 
 import { useEffect, useState } from "react";
-import Select from "react-select";
 
-export default function UserModal({ user = {}, onClose, onSave }) {
-  const [form, setForm] = useState({
-    id: user.id,
-    name: user.name || "",
-    surname: user.surname || "",
-    email: user.email || "",
-    password: "",
-    phone: user.phone || "",
-    address: user.address || "",
-    note: user.note || "",
-    role: user.role || "",
-    status: user.status || "attivo",
-    tags: user.tags
-      ? (typeof user.tags === "string"
-        ? user.tags.split(",").map(t => t.trim()).filter(Boolean)
-        : user.tags)
-      : [],
-  });
+const RUOLI = [
+  { value: "supervisore", label: "Supervisore" },
+  { value: "amministratore", label: "Amministratore" },
+  { value: "utente", label: "Utente" },
+  { value: "operatore", label: "Operatore" }
+];
 
-  const [tagOptions, setTagOptions] = useState([]);
-  const [error, setError] = useState("");
+export default function UserModal({ user, open, onClose, onSave, currentUser }) {
+  const [form, setForm] = useState(user || {});
+  const [saving, setSaving] = useState(false);
+
+  // Blocca la modifica se non admin/supervisore
+  const isEditor = ["supervisore", "amministratore"].includes(currentUser?.role);
 
   useEffect(() => {
-    fetch("/api/tags")
-      .then(res => res.json())
-      .then(tags => setTagOptions(
-        tags.map(t => ({
-          value: t.name || t.label,
-          label: t.name || t.label,
-        }))
-      ));
-  }, []);
-
-  useEffect(() => {
-    setForm(f => ({
-      ...f,
-      id: user.id,
-      name: user.name || "",
-      surname: user.surname || "",
-      email: user.email || "",
-      password: "",
-      phone: user.phone || "",
-      address: user.address || "",
-      note: user.note || "",
-      role: user.role || "",
-      status: user.status || "attivo",
-      tags: user.tags
-        ? (typeof user.tags === "string"
-          ? user.tags.split(",").map(t => t.trim()).filter(Boolean)
-          : user.tags)
-        : [],
-    }));
+    setForm(user || {});
   }, [user]);
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    if (!form.name || !form.surname || !form.email || (!form.id && !form.password)) {
-      setError("Compila tutti i campi obbligatori.");
-      return;
-    }
-    setError("");
-    // Conversione robusta
-    const tagsString = Array.isArray(form.tags)
-      ? form.tags.join(",")
-      : (form.tags || "");
-    const payload = { ...form, tags: tagsString };
-    onSave(payload);
-  }
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((f) => ({ ...f, [name]: value }));
+  };
 
-  function setField(field, value) {
-    setForm(f => ({ ...f, [field]: value }));
-  }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!isEditor) return;
+    setSaving(true);
+    await onSave(form);
+    setSaving(false);
+  };
+
+  if (!open) return null;
 
   return (
-    <div style={{
-      position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
-      background: "rgba(0,0,0,0.25)", zIndex: 2000,
-      display: "flex", alignItems: "center", justifyContent: "center"
-    }}>
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          background: "#fff", borderRadius: 16, minWidth: 420, padding: 36,
-          boxShadow: "0 2px 18px #0002", maxWidth: 510,
-        }}
-      >
-        <h2 style={{ color: "#23285A", fontWeight: 700, marginBottom: 22 }}>
-          {form.id ? "Modifica Utente" : "Nuovo Utente"}
-        </h2>
-        {error && <div style={{ color: "red", fontWeight: 600, marginBottom: 12 }}>{error}</div>}
-        <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label>Nome *</label>
-            <input value={form.name} onChange={e => setField("name", e.target.value)} required className="input" />
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+      <form className="bg-white rounded shadow-lg p-8 min-w-[400px] max-w-full" onSubmit={handleSubmit}>
+        <h2 className="text-lg font-bold mb-4">Modifica Utente</h2>
+        <div className="grid grid-cols-2 gap-4 mb-2">
+          <div>
+            <label className="block font-semibold mb-1">Nome *</label>
+            <input name="name" value={form.name || ""} onChange={handleChange} className="border rounded px-2 py-1 w-full" required disabled={!isEditor} />
           </div>
-          <div style={{ flex: 1 }}>
-            <label>Cognome *</label>
-            <input value={form.surname} onChange={e => setField("surname", e.target.value)} required className="input" />
+          <div>
+            <label className="block font-semibold mb-1">Cognome *</label>
+            <input name="surname" value={form.surname || ""} onChange={handleChange} className="border rounded px-2 py-1 w-full" required disabled={!isEditor} />
           </div>
         </div>
-        <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label>Email *</label>
-            <input type="email" value={form.email} onChange={e => setField("email", e.target.value)} required className="input" />
+        <div className="grid grid-cols-2 gap-4 mb-2">
+          <div>
+            <label className="block font-semibold mb-1">Email *</label>
+            <input type="email" name="email" value={form.email || ""} onChange={handleChange} className="border rounded px-2 py-1 w-full" required disabled={!isEditor} />
           </div>
-          <div style={{ flex: 1 }}>
-            <label>Password {form.id ? "(lascia vuoto per non cambiare)" : "*"}</label>
-            <input
-              type="password"
-              value={form.password}
-              onChange={e => setField("password", e.target.value)}
-              minLength={form.id ? 0 : 4}
-              required={!form.id}
-              className="input"
-            />
+          <div>
+            <label className="block font-semibold mb-1">Password (lascia vuoto per non cambiare)</label>
+            <input type="password" name="password" value={form.password || ""} onChange={handleChange} className="border rounded px-2 py-1 w-full bg-yellow-50" disabled={!isEditor} />
           </div>
         </div>
-        <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label>Telefono</label>
-            <input value={form.phone} onChange={e => setField("phone", e.target.value)} className="input" />
+        <div className="grid grid-cols-2 gap-4 mb-2">
+          <div>
+            <label className="block font-semibold mb-1">Telefono</label>
+            <input name="phone" value={form.phone || ""} onChange={handleChange} className="border rounded px-2 py-1 w-full" disabled={!isEditor} />
           </div>
-          <div style={{ flex: 1 }}>
-            <label>Indirizzo</label>
-            <input value={form.address} onChange={e => setField("address", e.target.value)} className="input" />
+          <div>
+            <label className="block font-semibold mb-1">Indirizzo</label>
+            <input name="address" value={form.address || ""} onChange={handleChange} className="border rounded px-2 py-1 w-full" disabled={!isEditor} />
           </div>
         </div>
-        <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label>Ruolo *</label>
-            <input value={form.role} onChange={e => setField("role", e.target.value)} required className="input" />
+        <div className="grid grid-cols-2 gap-4 mb-2">
+          <div>
+            <label className="block font-semibold mb-1">Ruolo *</label>
+            <select name="role" value={form.role || ""} onChange={handleChange} className="border rounded px-2 py-1 w-full" required disabled={!isEditor}>
+              <option value="">Seleziona ruolo</option>
+              {RUOLI.map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
           </div>
-          <div style={{ flex: 1 }}>
-            <label>Stato *</label>
-            <select value={form.status} onChange={e => setField("status", e.target.value)} className="input">
+          <div>
+            <label className="block font-semibold mb-1">Stato *</label>
+            <select name="status" value={form.status || "attivo"} onChange={handleChange} className="border rounded px-2 py-1 w-full" required disabled={!isEditor}>
               <option value="attivo">Attivo</option>
               <option value="bloccato">Bloccato</option>
-              <option value="archiviato">Archiviato</option>
             </select>
           </div>
         </div>
-        <div style={{ marginBottom: 12 }}>
-          <label>Tag</label>
-          <Select
-            isMulti
-            options={tagOptions}
-            value={tagOptions.filter(opt => form.tags.includes(opt.value))}
-            onChange={vals => setField("tags", vals.map(v => v.value))}
-            placeholder="Seleziona uno o più tag"
-            styles={{
-              control: (base) => ({ ...base, minHeight: 36, borderRadius: 8 }),
-              valueContainer: (base) => ({ ...base, padding: "0 6px" }),
-              multiValue: (base) => ({ ...base, background: "#e6f4ff", color: "#0073b1", borderRadius: 7 }),
-            }}
-          />
+        <div className="mb-2">
+          <label className="block font-semibold mb-1">Tag</label>
+          <input name="tags" value={form.tags || ""} onChange={handleChange} className="border rounded px-2 py-1 w-full" disabled={!isEditor} />
         </div>
-        <div style={{ marginBottom: 12 }}>
-          <label>Note</label>
-          <textarea value={form.note} onChange={e => setField("note", e.target.value)} className="input" rows={2} />
+        <div className="mb-2">
+          <label className="block font-semibold mb-1">Note</label>
+          <textarea name="note" value={form.note || ""} onChange={handleChange} className="border rounded px-2 py-1 w-full" disabled={!isEditor}></textarea>
         </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <button type="button" onClick={onClose} style={{
-            background: "#e6e9f6", color: "#333", border: "none",
-            borderRadius: 8, padding: "8px 28px", fontWeight: 600, fontSize: 16, cursor: "pointer"
-          }}>Annulla</button>
-          <button type="submit" style={{
-            background: "#0070f3", color: "#fff", border: "none",
-            borderRadius: 8, padding: "8px 28px", fontWeight: 600, fontSize: 16, cursor: "pointer"
-          }}>
-            Salva
-          </button>
+        <div className="flex gap-4 justify-end mt-4">
+          <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded">Annulla</button>
+          <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded" disabled={!isEditor || saving}>Salva</button>
         </div>
       </form>
-      <style>{`
-        .input {
-          width: 100%; padding: 7px 9px; margin-top: 2px;
-          border: 1px solid #e0e6f2; border-radius: 8px;
-          font-size: 15px; box-sizing: border-box;
-        }
-        label { font-weight: 600; font-size: 15px; }
-      `}</style>
     </div>
   );
 }
