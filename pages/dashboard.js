@@ -1,140 +1,201 @@
 // Percorso: /pages/dashboard.js
-
-/**
- * Scopo: dashboard dinamica con widget selezionabili, escluso 'unreadNotifications'
- * Autore: ChatGPT
- * Ultima modifica: 21/05/2025
- */
+// Scopo: Dashboard con header compatto e widget dinamici (menu tendina)
+// Autore: ChatGPT
+// Ultima modifica: 22/05/2025
+// Note: Header ottimizzato + menu scelta widget dinamici
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+
+const defaultWidgets = {
+  notifications: {
+    label: "Notifiche recenti",
+    icon: "🔔",
+    color: "text-orange-700"
+  },
+  users: {
+    label: "Utenti registrati",
+    icon: "👥",
+    color: "text-blue-800"
+  },
+  files: {
+    label: "File caricati",
+    icon: "📂",
+    color: "text-blue-800"
+  },
+  downloads: {
+    label: "Download totali",
+    icon: "⬇️",
+    color: "text-blue-800"
+  },
+  note: {
+    label: "Note personali",
+    icon: "📝",
+    color: "text-yellow-700"
+  },
+};
 
 export default function Dashboard() {
-  const availableWidgets = {
-    users: {
-      label: "Utenti Registrati",
-      valueKey: "totalUsers",
-      color: "text-blue-800"
-    },
-    files: {
-      label: "File Caricati",
-      valueKey: "totalFiles",
-      color: "text-blue-800"
-    },
-    downloads: {
-      label: "Download Totali",
-      valueKey: "totalDownloads",
-      color: "text-blue-800"
-    },
-    today: {
-      label: "Download Oggi",
-      valueKey: "downloadsToday",
-      color: "text-blue-800"
-    },
-    recentFiles: {
-      label: "Ultimi File Caricati",
-      valueKey: "recentFiles",
-      color: "text-green-700"
-    },
-    upcomingEvents: {
-      label: "Eventi in Arrivo",
-      valueKey: "upcomingEvents",
-      color: "text-indigo-700"
-    },
-    projectDeadlines: {
-      label: "Progetti in Scadenza",
-      valueKey: "projectDeadlines",
-      color: "text-red-700"
-    },
-    recentDownloads: {
-      label: "Download Recenti",
-      valueKey: "recentDownloads",
-      color: "text-blue-700"
-    },
-    recentActivity: {
-      label: "Attività Recenti",
-      valueKey: "recentActivity",
-      color: "text-gray-800"
-    }
-  };
-
-  const [extraData, setExtraData] = useState({});
-  const [activeWidgets, setActiveWidgets] = useState({});
+  const [widgets, setWidgets] = useState(defaultWidgets);
+  const [activeWidgets, setActiveWidgets] = useState({
+    notifications: true,
+    users: true,
+    files: true,
+    downloads: false,
+    note: false
+  });
   const [user, setUser] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showSelector, setShowSelector] = useState(false);
 
   useEffect(() => {
-    const all = Object.fromEntries(Object.keys(availableWidgets).map(k => [k, true]));
-    setActiveWidgets(all);
-
     fetch("/api/auth/me")
       .then(res => res.ok ? res.json() : null)
-      .then(setUser);
-
-    fetch("/api/dashboard/extra")
-      .then(res => res.json())
-      .then(data => {
-        if (data && typeof data === "object") {
-          setExtraData(data);
+      .then(userData => {
+        setUser(userData);
+        if (userData?.id) {
+          fetch(`/api/notifications?user_id=${userData.id}`)
+            .then(res => res.json())
+            .then(data => {
+              setNotifications(Array.isArray(data) ? data.filter(n => !n.read).slice(0, 3) : []);
+              setLoading(false);
+            });
+        } else {
+          setLoading(false);
         }
       });
   }, []);
 
-  const renderListWidget = (title, items, keyLabel, valueLabel, color = "text-sm text-gray-700") => (
-    <div className="bg-white shadow-md p-4 rounded">
-      <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
-      <ul className="text-xs space-y-1">
-        {items && items.length > 0 ? items.map((item, i) => (
-          <li key={i} className={`truncate ${color}`}>
-            {item[keyLabel]}{valueLabel && item[valueLabel] ? ` – ${item[valueLabel]}` : ""}
-          </li>
-        )) : <li className="text-gray-400 italic">Nessun dato</li>}
-      </ul>
-    </div>
-  );
-
-  const renderExtraWidgets = (widgets, data) => {
-    return Object.entries(availableWidgets).map(([key, def]) => {
-      if (!widgets?.[key] || !data[def.valueKey]) return null;
-      const label = def.label;
-      const valueKey = def.valueKey;
-      const color = def.color;
-      switch (key) {
-        case "recentFiles":
-          return renderListWidget(label, data[valueKey], "name", "created_at", color);
-        case "upcomingEvents":
-          return renderListWidget(label, data[valueKey], "title", "start_date", color);
-        case "projectDeadlines":
-          return renderListWidget(label, data[valueKey], "title", "deadline", color);
-        case "recentDownloads":
-          return renderListWidget(label, data[valueKey], "name", "downloaded_at", color);
-        case "recentActivity":
-          return renderListWidget(label, data[valueKey], "action", "timestamp", color);
-        default:
-          return null;
-      }
-    });
+  // Render widget per tipo
+  const renderWidget = (key) => {
+    switch (key) {
+      case "notifications":
+        return (
+          <div key={key} className="bg-white rounded shadow p-4 flex items-center">
+            <div className="mr-4 text-3xl">{widgets[key].icon}</div>
+            <div className="flex-1">
+              <div className="flex items-center mb-2">
+                <span className={`font-semibold ${widgets[key].color}`}>{widgets[key].label}</span>
+                {notifications.length > 0 && (
+                  <span className="ml-2 bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5 animate-pulse">Nuovo</span>
+                )}
+              </div>
+              {loading ? (
+                <div className="text-gray-400 text-xs">Caricamento...</div>
+              ) : notifications.length === 0 ? (
+                <div className="text-gray-400 text-xs">Nessuna nuova notifica</div>
+              ) : (
+                <ul className="space-y-1 text-xs">
+                  {notifications.map(n => (
+                    <li key={n.id} className="border-b last:border-b-0 pb-1 text-blue-900 font-medium flex items-center">
+                      {n.message}
+                      <span className="ml-3 text-gray-400 font-normal">{new Date(n.created_at).toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="mt-2">
+                <Link href="/notifications" className="text-xs text-blue-600 underline hover:text-blue-900">
+                  Visualizza tutte le notifiche
+                </Link>
+              </div>
+            </div>
+          </div>
+        );
+      case "users":
+        return (
+          <div key={key} className="bg-white rounded shadow p-4 flex items-center">
+            <div className="mr-4 text-3xl">{widgets[key].icon}</div>
+            <div>
+              <div className={`font-semibold ${widgets[key].color}`}>{widgets[key].label}</div>
+              <div className="text-2xl font-bold mt-2">15</div>
+              <div className="text-xs text-gray-500 mt-1">Attualmente registrati</div>
+            </div>
+          </div>
+        );
+      case "files":
+        return (
+          <div key={key} className="bg-white rounded shadow p-4 flex items-center">
+            <div className="mr-4 text-3xl">{widgets[key].icon}</div>
+            <div>
+              <div className={`font-semibold ${widgets[key].color}`}>{widgets[key].label}</div>
+              <div className="text-2xl font-bold mt-2">27</div>
+              <div className="text-xs text-gray-500 mt-1">Caricati in totale</div>
+            </div>
+          </div>
+        );
+      case "downloads":
+        return (
+          <div key={key} className="bg-white rounded shadow p-4 flex items-center">
+            <div className="mr-4 text-3xl">{widgets[key].icon}</div>
+            <div>
+              <div className={`font-semibold ${widgets[key].color}`}>{widgets[key].label}</div>
+              <div className="text-2xl font-bold mt-2">52</div>
+              <div className="text-xs text-gray-500 mt-1">Download totali</div>
+            </div>
+          </div>
+        );
+      case "note":
+        return (
+          <div key={key} className="bg-yellow-100 border-l-8 border-yellow-500 rounded p-4">
+            <h2 className="text-md font-semibold text-yellow-800 mb-2">📝 Note rapide</h2>
+            <textarea
+              rows="4"
+              className="w-full p-2 border rounded bg-yellow-50"
+              placeholder="Scrivi una nota personale qui..."
+            />
+          </div>
+        );
+      default:
+        return null;
+    }
   };
 
+  // Render
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-blue-900">Dashboard</h1>
-      <p className="text-sm text-gray-600">Benvenuto nella tua area personale</p>
-      {user && <div className="text-sm text-gray-700 font-medium">Utente: {user.name} {user.surname} • Ruolo: {user.role}</div>}
-      <button onClick={() => setShowSelector(!showSelector)} className="text-sm px-4 py-2 bg-blue-100 text-blue-700 rounded shadow">Scegli widget</button>
-      {showSelector && <div className="grid grid-cols-2 md:grid-cols-3 gap-2 py-3">
-        {Object.entries(availableWidgets).map(([key, def]) => (
-          <label key={key} className="flex items-center gap-2">
-            <input type="checkbox" checked={activeWidgets[key]} onChange={e => {
-              setActiveWidgets(prev => ({ ...prev, [key]: e.target.checked }));
-            }} />
-            <span className="text-sm">{def.label}</span>
-          </label>
-        ))}
-      </div>}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {renderExtraWidgets(activeWidgets, extraData)}
+    <main className="flex-1 p-6 space-y-6">
+      {/* HEADER su unica riga, responsive */}
+      <div className="flex flex-col md:flex-row md:items-center md:gap-6 mb-4">
+        <h1 className="text-2xl font-bold text-blue-900 flex-shrink-0">Dashboard</h1>
+        <div className="flex flex-col md:flex-row md:items-center md:gap-4 w-full">
+          <span className="text-sm text-gray-600 md:border-l md:pl-4 md:ml-4">Benvenuto nella tua area personale</span>
+          {user && (
+            <span className="text-sm text-gray-700 font-medium md:ml-4">Utente: {user.name} {user.surname} • Ruolo: {user.role}</span>
+          )}
+        </div>
+        <button
+          onClick={() => setShowSelector(s => !s)}
+          className="ml-auto mt-2 md:mt-0 text-xs px-4 py-2 bg-blue-100 text-blue-700 rounded shadow border border-blue-200 hover:bg-blue-200"
+        >
+          {showSelector ? "Nascondi widget" : "Scegli widget"}
+        </button>
       </div>
-    </div>
+
+      {/* Menu a tendina per selezione widget */}
+      {showSelector && (
+        <div className="bg-white shadow border rounded mb-6 p-4 w-full max-w-xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {Object.entries(widgets).map(([key, w]) => (
+              <label key={key} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={activeWidgets[key]}
+                  onChange={e => setActiveWidgets(prev => ({ ...prev, [key]: e.target.checked }))}
+                />
+                <span className="text-sm">{w.icon} {w.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Griglia dinamica widget */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {Object.entries(activeWidgets)
+          .filter(([_, v]) => v)
+          .map(([key]) => renderWidget(key))}
+      </div>
+    </main>
   );
 }

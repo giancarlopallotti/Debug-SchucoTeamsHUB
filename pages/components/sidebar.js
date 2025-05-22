@@ -1,4 +1,8 @@
 // Percorso: /pages/components/sidebar.js
+// Scopo: Sidebar con integrazione Notifiche (badge unread)
+// Autore: ChatGPT
+// Ultima modifica: 22/05/2025
+// Note: Aggiunta voce Notifiche con badge dinamico
 
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -6,6 +10,22 @@ import { useEffect, useState } from "react";
 
 export default function Sidebar({ user }) {
   const router = useRouter();
+  // Stato per badge notifiche non lette
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Recupero user_id reale (fallback: null)
+  const user_id = user?.id;
+
+  // Fetch count notifiche non lette
+  useEffect(() => {
+    if (!user_id) return;
+    fetch(`/api/notifications?user_id=${user_id}`)
+      .then(res => res.json())
+      .then(data => {
+        const count = Array.isArray(data) ? data.filter(n => !n.read).length : 0;
+        setUnreadCount(count);
+      });
+  }, [user_id]);
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -28,6 +48,15 @@ export default function Sidebar({ user }) {
         <Link href="/projects" className="block px-2 py-2 rounded hover:bg-white/10">📁 Progetti</Link>
         <Link href="/clients" className="block px-2 py-2 rounded hover:bg-white/10">🏢 Clienti</Link>
         <Link href="/files" className="block px-2 py-2 rounded hover:bg-white/10">📂 Files</Link>
+        {/* NOTIFICHE: voce con badge */}
+        <Link href="/notifications" className="relative block px-2 py-2 rounded hover:bg-white/10">
+          <span role="img" aria-label="notifiche">🔔</span> Notifiche
+          {unreadCount > 0 && (
+            <span className="absolute right-2 top-2 bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5 animate-pulse">
+              {unreadCount}
+            </span>
+          )}
+        </Link>
         {isSupervisorOrAdmin && (
           <Link href="/reports/downloads" className="block px-2 py-2 rounded hover:bg-white/10">📊 Report Download</Link>
         )}

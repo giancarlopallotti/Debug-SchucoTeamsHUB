@@ -1,64 +1,111 @@
-// pages/notifications.js
-
-/**
- * Scopo: gestione notifiche utente loggato, lettura e aggiornamento stato
- * Autore: ChatGPT
- * Ultima modifica: 21/05/2025
- * Note: recupero dati utente da /api/auth/me, stile coerente, aggiornamento UI
- */
+// Percorso: /pages/notifications.js
+// Scopo: Pagina notifiche moderna, user dinamico, filtri, badge e UX migliorata
+// Autore: ChatGPT
+// Ultima modifica: 22/05/2025
+// Note: Filtro non lette/tutte, badge nuovo, gestione user e azioni ottimizzate
 
 import { useEffect, useState } from "react";
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showOnlyUnread, setShowOnlyUnread] = useState(true);
 
+  // Fetch user loggato + notifiche
   useEffect(() => {
     fetch("/api/auth/me")
-      .then(res => res.json())
-      .then(data => {
-        setUser(data);
-        return fetch(`/api/notifications?user_id=${data.id}`);
-      })
-      .then(res => res.json())
-      .then(data => setNotifications(data))
-      .catch(err => console.error("Errore notifiche:", err))
-      .finally(() => setLoading(false));
+      .then(res => res.ok ? res.json() : null)
+      .then(userData => {
+        setUser(userData);
+        if (userData?.id) {
+          fetch(`/api/notifications?user_id=${userData.id}`)
+            .then(res => res.json())
+            .then(data => {
+              setNotifications(Array.isArray(data) ? data : []);
+              setLoading(false);
+            });
+        } else {
+          setLoading(false);
+        }
+      });
   }, []);
 
-  const markAllRead = async () => {
+  // Segna tutto come letto
+  const markAllRead = () => {
     if (!user?.id) return;
-    await fetch(`/api/notifications/mark-all-read?user_id=${user.id}`, { method: "POST" });
-    const res = await fetch(`/api/notifications?user_id=${user.id}`);
-    const data = await res.json();
-    setNotifications(data);
+    fetch("/api/notifications/mark-all-read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: user.id }),
+    }).then(() => {
+      setNotifications(n => n.map(notif => ({ ...notif, read: 1 })));
+    });
   };
 
+  // Segna singola come letta
+  const markOneRead = (id) => {
+    fetch(`/api/notifications/${id}/read`, { method: "POST" }).then(() => {
+      setNotifications(n => n.map(notif => notif.id === id ? { ...notif, read: 1 } : notif));
+    });
+  };
+
+  const filteredNotifs = showOnlyUnread
+    ? notifications.filter(n => !n.read)
+    : notifications;
+
   return (
-    <div className="p-4 space-y-6">
-      <h1 className="text-xl font-bold text-blue-900">Notifiche</h1>
-      <button
-        onClick={markAllRead}
-        className="bg-blue-800 text-white px-4 py-2 rounded shadow hover:bg-blue-700"
-      >
-        Segna tutte come lette
-      </button>
+    <div className="max-w-2xl mx-auto p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-2xl font-bold">Notifiche</h2>
+        {filteredNotifs.length > 0 && showOnlyUnread && (
+          <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5 animate-pulse">Nuovo</span>
+        )}
+      </div>
+
+      <div className="mb-3 flex gap-4 items-center">
+        <button
+          onClick={() => setShowOnlyUnread(false)}
+          className={`px-3 py-1 rounded ${!showOnlyUnread ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-800"}`}
+        >
+          Tutte
+        </button>
+        <button
+          onClick={() => setShowOnlyUnread(true)}
+          className={`px-3 py-1 rounded ${showOnlyUnread ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-800"}`}
+        >
+          Solo non lette
+        </button>
+        {notifications.some(n => !n.read) && (
+          <button
+            onClick={markAllRead}
+            className="ml-auto px-3 py-1 bg-green-600 text-white rounded"
+          >
+            Segna tutte come lette
+          </button>
+        )}
+      </div>
 
       {loading ? (
-        <p>Caricamento notifiche...</p>
-      ) : notifications.length === 0 ? (
-        <p>Nessuna notifica presente.</p>
+        <div className="text-gray-400 text-xs">Caricamento...</div>
+      ) : filteredNotifs.length === 0 ? (
+        <div className="text-gray-400 italic">{showOnlyUnread ? "Nessuna notifica non letta" : "Nessuna notifica trovata"}</div>
       ) : (
-        <ul className="space-y-4">
-          {notifications.map(n => (
-            <li key={n.id} className={`p-4 border rounded ${n.read ? "bg-gray-100" : "bg-red-50"}`}>
-              <div className="flex justify-between items-center">
-                <span className={`text-sm ${n.read ? "text-gray-500" : "text-red-800 font-semibold"}`}>
-                  {n.message}
-                </span>
-                <span className="text-xs text-gray-400">{new Date(n.created_at).toLocaleString()}</span>
-              </div>
+        <ul className="divide-y divide-gray-200 bg-white rounded shadow">
+          {filteredNotifs.map(notif => (
+            <li key={notif.id} className={`p-4 flex items-center ${!notif.read ? "bg-orange-50 font-semibold text-blue-900" : "text-gray-800"}`}>
+              <span className="flex-1">
+                {notif.message}
+                <span className="block text-xs text-gray-400 font-normal mt-1">{new Date(notif.created_at).toLocaleString()}</span>
+              </span>
+              {!notif.read && (
+                <button
+                  className="ml-4 text-blue-600 underline text-xs"
+                  onClick={() => markOneRead(notif.id)}
+                >
+                  Segna come letta
+                </button>
+              )}
             </li>
           ))}
         </ul>

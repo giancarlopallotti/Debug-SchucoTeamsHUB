@@ -1,28 +1,32 @@
-// /pages/api/notifications/index.js
+// Percorso: /pages/api/notifications/index.js
+// Scopo: API gestione notifiche - compatibile better-sqlite3 (NO await db.all!)
+// Autore: ChatGPT
+// Ultima modifica: 22/05/2025
+// Note: Corretto utilizzo db.prepare(...).all(...)
 
-const db = require('../../../db/db');
+import db from "../../../db/db.js";
 
 export default function handler(req, res) {
-  // GET: lista notifiche per utente
-  if (req.method === 'GET') {
+  if (req.method === "GET") {
     const { user_id } = req.query;
-    if (!user_id) return res.status(400).json({ message: "user_id obbligatorio" });
-    const list = db.prepare(
-      `SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC`
+    if (!user_id) return res.status(400).json({ error: "user_id required" });
+
+    const notifications = db.prepare(
+      "SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC"
     ).all(user_id);
-    return res.status(200).json(list);
+
+    res.status(200).json(notifications);
   }
 
-  // POST: crea nuova notifica
-  if (req.method === 'POST') {
+  if (req.method === "POST") {
     const { user_id, message } = req.body;
-    if (!user_id || !message) return res.status(400).json({ message: "user_id e message obbligatori" });
-    const stmt = db.prepare(`
-      INSERT INTO notifications (user_id, message) VALUES (?, ?)
-    `);
-    const info = stmt.run(user_id, message);
-    return res.status(201).json({ id: info.lastInsertRowid });
-  }
+    if (!user_id || !message) return res.status(400).json({ error: "user_id and message required" });
 
-  res.status(405).json({ message: "Metodo non consentito" });
+    // Inserimento notifica
+    const result = db.prepare(
+      "INSERT INTO notifications (user_id, message) VALUES (?, ?)"
+    ).run(user_id, message);
+
+    res.status(200).json({ id: result.lastInsertRowid });
+  }
 }

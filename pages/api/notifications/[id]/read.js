@@ -1,14 +1,17 @@
 // /pages/api/notifications/[id]/read.js
 
-const db = require('../../../../db/db');
+import db from "../../../../db/db.js";
 
-export default function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: "Metodo non consentito" });
-  }
+export default async function handler(req, res) {
   const { id } = req.query;
-  db.prepare(
-    `UPDATE notifications SET read = 1 WHERE id = ?`
-  ).run(id);
-  res.status(200).json({ success: true });
+
+  if (req.method === "POST") {
+    await db.run(
+      "UPDATE notifications SET read = 1 WHERE id = ?",
+      [id]
+    );
+    res.status(200).json({ success: true });
+  } else {
+    res.status(405).end("Method Not Allowed");
+  }
 }
