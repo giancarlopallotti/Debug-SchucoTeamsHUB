@@ -1,227 +1,138 @@
-// pages/clients.js
-import { parse } from "cookie";
-import { useEffect, useState } from "react";
-
-// --- Protezione pagina lato server ---
-export async function getServerSideProps(context) {
-  const { req } = context;
-  const cookies = req.headers.cookie ? parse(req.headers.cookie) : {};
-  const token = cookies.token;
-  if (!token) {
-    return {
-      redirect: {
-        destination: "/login",
-        permanent: false,
-      },
-    };
-  }
-  return { props: {} };
-}
+import React, { useState, useEffect } from "react";
+import ClientModal from "./components/ClientModal";
 
 export default function ClientsPage() {
-  const [clienti, setClienti] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState("");
-  const [form, setForm] = useState({
-    surname: "",
-    name: "",
-    company: "",
-    address: "",
-    city: "",
-    cap: "",
-    province: "",
-    note: "",
-    main_contact: "",
-    phone: "",
-    mobile: "",
-    emails: "",
-    documents: ""
-  });
-  const [editId, setEditId] = useState(null);
-  const [editForm, setEditForm] = useState({});
+  const [clients, setClients] = useState([]);
+  const [modalClient, setModalClient] = useState(null);
+  const [search, setSearch] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("");
+  const [cityFilter, setCityFilter] = useState("");
+  const [provinceFilter, setProvinceFilter] = useState("");
+  const [sortField, setSortField] = useState("company");
+  const [sortDir, setSortDir] = useState("asc");
 
-  useEffect(() => {
-    fetchClients();
-  }, []);
+  useEffect(() => { fetchClients(); }, []);
+  function fetchClients() {
+    fetch("/api/clients").then(r => r.json()).then(setClients);
+  }
 
-  const fetchClients = async () => {
-    setLoading(true);
-    const res = await fetch("/api/clients");
-    if (!res.ok) {
-      setMsg("Errore caricamento clienti");
-      setLoading(false);
-      return;
-    }
-    const data = await res.json();
-    setClienti(data);
-    setLoading(false);
-  };
-
-  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
-
-  const handleSubmit = async e => {
-    e.preventDefault();
-    setMsg("");
-    if (!form.surname || !form.name) {
-      setMsg("Cognome e nome sono obbligatori!");
-      return;
-    }
-    const res = await fetch("/api/clients", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form)
+  // Filtri + sort
+  const filteredClients = clients
+    .filter(c =>
+      (!search || c.name?.toLowerCase().includes(search.toLowerCase()) || c.surname?.toLowerCase().includes(search.toLowerCase()) || c.company?.toLowerCase().includes(search.toLowerCase())) &&
+      (!companyFilter || c.company === companyFilter) &&
+      (!cityFilter || c.city === cityFilter) &&
+      (!provinceFilter || c.province === provinceFilter)
+    )
+    .sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      let va = a[sortField] || "";
+      let vb = b[sortField] || "";
+      return va.localeCompare(vb) * dir;
     });
-    if (res.ok) {
-      setMsg("Cliente aggiunto!");
-      setForm({
-        surname: "",
-        name: "",
-        company: "",
-        address: "",
-        city: "",
-        cap: "",
-        province: "",
-        note: "",
-        main_contact: "",
-        phone: "",
-        mobile: "",
-        emails: "",
-        documents: ""
-      });
-      fetchClients();
-    } else {
-      const err = await res.json();
-      setMsg("Errore: " + (err.message || "Impossibile aggiungere cliente"));
-    }
-  };
 
-  // --- MODIFICA CLIENTE ---
-  const startEdit = (cliente) => {
-    setEditId(cliente.id);
-    setEditForm({ ...cliente });
-  };
-  const handleEditChange = e => setEditForm({ ...editForm, [e.target.name]: e.target.value });
-  const handleEditSubmit = async (id) => {
-    const res = await fetch(`/api/clients/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editForm)
-    });
-    if (res.ok) {
-      setMsg("Cliente aggiornato!");
-      setEditId(null);
-      fetchClients();
-    } else {
-      setMsg("Errore aggiornamento cliente");
-    }
-  };
-  // --- CANCELLA CLIENTE ---
-  const handleDelete = async (id) => {
-    if (!window.confirm("Sei sicuro di voler eliminare questo cliente?")) return;
-    const res = await fetch(`/api/clients/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      setMsg("Cliente eliminato!");
-      fetchClients();
-    } else {
-      setMsg("Errore eliminazione cliente");
-    }
-  };
+  function toggleSort(field) {
+    if (sortField === field) setSortDir(sortDir === "asc" ? "desc" : "asc");
+    else { setSortField(field); setSortDir("asc"); }
+  }
+
+  function resetFilters() {
+    setSearch(""); setCompanyFilter(""); setCityFilter(""); setProvinceFilter("");
+  }
+
+  // Raccogli valori unici per filtri select
+  const companyOptions = [...new Set(clients.map(c => c.company).filter(Boolean))];
+  const cityOptions = [...new Set(clients.map(c => c.city).filter(Boolean))];
+  const provinceOptions = [...new Set(clients.map(c => c.province).filter(Boolean))];
 
   return (
     <div style={{ padding: "2rem" }}>
-      <h1>Clienti</h1>
-      <form onSubmit={handleSubmit} style={{ marginBottom: "2rem" }}>
-        <input name="surname" placeholder="Cognome *" value={form.surname} onChange={handleChange} style={{ marginRight: 10 }} />
-        <input name="name" placeholder="Nome *" value={form.name} onChange={handleChange} style={{ marginRight: 10 }} />
-        <input name="company" placeholder="Società" value={form.company} onChange={handleChange} style={{ marginRight: 10 }} />
-        <input name="address" placeholder="Indirizzo" value={form.address} onChange={handleChange} style={{ marginRight: 10 }} />
-        <input name="city" placeholder="Città" value={form.city} onChange={handleChange} style={{ marginRight: 10 }} />
-        <input name="cap" placeholder="CAP" value={form.cap} onChange={handleChange} style={{ marginRight: 10 }} />
-        <input name="province" placeholder="Provincia" value={form.province} onChange={handleChange} style={{ marginRight: 10 }} />
-        <input name="main_contact" placeholder="Referente" value={form.main_contact} onChange={handleChange} style={{ marginRight: 10 }} />
-        <input name="phone" placeholder="Telefono" value={form.phone} onChange={handleChange} style={{ marginRight: 10 }} />
-        <input name="mobile" placeholder="Cellulare" value={form.mobile} onChange={handleChange} style={{ marginRight: 10 }} />
-        <input name="emails" placeholder="Email (separate da , )" value={form.emails} onChange={handleChange} style={{ marginRight: 10 }} />
-        <input name="documents" placeholder="Documenti allegati" value={form.documents} onChange={handleChange} style={{ marginRight: 10 }} />
-        <input name="note" placeholder="Note" value={form.note} onChange={handleChange} style={{ marginRight: 10 }} />
-        <button type="submit">Aggiungi Cliente</button>
-      </form>
-      {msg && <p><b>{msg}</b></p>}
-      {loading ? (
-        <p>Caricamento...</p>
-      ) : (
-        <table border="1" cellPadding="8" style={{ maxWidth: "100%", fontSize: 14 }}>
+      <h1 style={{ fontWeight: "bold", marginBottom: 22 }}>Clienti</h1>
+      {/* Barra filtri */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 20, alignItems: "center" }}>
+        <input placeholder="Cerca nome, cognome o azienda..." value={search} onChange={e => setSearch(e.target.value)} style={inputStyle} />
+        <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} style={inputStyle}>
+          <option value="">Tutte le aziende</option>
+          {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select value={cityFilter} onChange={e => setCityFilter(e.target.value)} style={inputStyle}>
+          <option value="">Tutte le città</option>
+          {cityOptions.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select value={provinceFilter} onChange={e => setProvinceFilter(e.target.value)} style={inputStyle}>
+          <option value="">Tutte le province</option>
+          {provinceOptions.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <button onClick={resetFilters} style={{
+          background: "#e6e9f6", border: "none", borderRadius: 8, padding: "8px 16px",
+          fontWeight: 600, color: "#23285A", cursor: "pointer"
+        }}>Reset</button>
+        <div style={{ flex: "1 0 90px", textAlign: "right" }}>
+          <button onClick={() => setModalClient({})}
+            style={{
+              background: "#0749a6", color: "#fff", padding: "10px 22px", fontWeight: "bold",
+              border: "none", borderRadius: 12, fontSize: 16, cursor: "pointer"
+            }}>
+            + Nuovo Cliente
+          </button>
+        </div>
+      </div>
+      {/* Tabella */}
+      <div style={{
+        background: "#fff", borderRadius: 16, boxShadow: "0 1px 4px #0002", padding: 18, maxWidth: 1350, margin: "auto"
+      }}>
+        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
           <thead>
-            <tr>
-              <th>ID</th>
-              <th>Cognome</th>
-              <th>Nome</th>
-              <th>Società</th>
-              <th>Indirizzo</th>
-              <th>Città</th>
-              <th>CAP</th>
-              <th>Provincia</th>
-              <th>Referente</th>
-              <th>Telefono</th>
-              <th>Cellulare</th>
-              <th>Email</th>
-              <th>Note</th>
-              <th>Documenti</th>
-              <th>Data</th>
-              <th>Azioni</th>
+            <tr style={{ background: "#f6f8fa" }}>
+              <th style={thStyle} onClick={() => toggleSort("company")}>Azienda {sortField === "company" ? (sortDir === "asc" ? "▲" : "▼") : ""}</th>
+              <th style={thStyle} onClick={() => toggleSort("surname")}>Cognome {sortField === "surname" ? (sortDir === "asc" ? "▲" : "▼") : ""}</th>
+              <th style={thStyle} onClick={() => toggleSort("name")}>Nome {sortField === "name" ? (sortDir === "asc" ? "▲" : "▼") : ""}</th>
+              <th style={thStyle}>Città</th>
+              <th style={thStyle}>Provincia</th>
+              <th style={thStyle}>Contatto</th>
+              <th style={thStyle}>Azioni</th>
             </tr>
           </thead>
           <tbody>
-            {clienti.map(c => (
-              editId === c.id ? (
-                <tr key={c.id} style={{ background: "#eef" }}>
-                  <td>{c.id}</td>
-                  <td><input name="surname" value={editForm.surname || ""} onChange={handleEditChange} style={{ width: 80 }} /></td>
-                  <td><input name="name" value={editForm.name || ""} onChange={handleEditChange} style={{ width: 80 }} /></td>
-                  <td><input name="company" value={editForm.company || ""} onChange={handleEditChange} style={{ width: 80 }} /></td>
-                  <td><input name="address" value={editForm.address || ""} onChange={handleEditChange} style={{ width: 80 }} /></td>
-                  <td><input name="city" value={editForm.city || ""} onChange={handleEditChange} style={{ width: 60 }} /></td>
-                  <td><input name="cap" value={editForm.cap || ""} onChange={handleEditChange} style={{ width: 40 }} /></td>
-                  <td><input name="province" value={editForm.province || ""} onChange={handleEditChange} style={{ width: 50 }} /></td>
-                  <td><input name="main_contact" value={editForm.main_contact || ""} onChange={handleEditChange} style={{ width: 80 }} /></td>
-                  <td><input name="phone" value={editForm.phone || ""} onChange={handleEditChange} style={{ width: 80 }} /></td>
-                  <td><input name="mobile" value={editForm.mobile || ""} onChange={handleEditChange} style={{ width: 80 }} /></td>
-                  <td><input name="emails" value={editForm.emails || ""} onChange={handleEditChange} style={{ width: 110 }} /></td>
-                  <td><input name="note" value={editForm.note || ""} onChange={handleEditChange} style={{ width: 70 }} /></td>
-                  <td><input name="documents" value={editForm.documents || ""} onChange={handleEditChange} style={{ width: 80 }} /></td>
-                  <td>{c.created_at}</td>
-                  <td>
-                    <button onClick={() => handleEditSubmit(c.id)}>Salva</button>
-                    <button onClick={() => setEditId(null)} style={{ marginLeft: 6 }}>Annulla</button>
-                  </td>
-                </tr>
-              ) : (
-                <tr key={c.id}>
-                  <td>{c.id}</td>
-                  <td>{c.surname}</td>
-                  <td>{c.name}</td>
-                  <td>{c.company}</td>
-                  <td>{c.address}</td>
-                  <td>{c.city}</td>
-                  <td>{c.cap}</td>
-                  <td>{c.province}</td>
-                  <td>{c.main_contact}</td>
-                  <td>{c.phone}</td>
-                  <td>{c.mobile}</td>
-                  <td>{c.emails}</td>
-                  <td>{c.note}</td>
-                  <td>{c.documents}</td>
-                  <td>{c.created_at}</td>
-                  <td>
-                    <button onClick={() => startEdit(c)}>Modifica</button>
-                    <button onClick={() => handleDelete(c.id)} style={{ marginLeft: 6, color: 'red' }}>Elimina</button>
-                  </td>
-                </tr>
-              )
+            {filteredClients.map((c, i) => (
+              <tr key={c.id} style={{ background: i % 2 === 0 ? "#f8fbff" : "#fff" }}>
+                <td style={tdStyle}>{c.company}</td>
+                <td style={tdStyle}>{c.surname}</td>
+                <td style={tdStyle}>{c.name}</td>
+                <td style={tdStyle}>{c.city}</td>
+                <td style={tdStyle}>{c.province}</td>
+                <td style={tdStyle}>{c.main_contact}</td>
+                <td style={tdStyle}>
+                  <button
+                    title="Modifica"
+                    onClick={() => setModalClient(c)}
+                    style={{
+                      background: "#f5f5f5", border: "none", borderRadius: 8, padding: "6px 14px",
+                      cursor: "pointer"
+                    }}>✏️</button>
+                </td>
+              </tr>
             ))}
           </tbody>
         </table>
+      </div>
+      {/* Modale creazione/modifica cliente */}
+      {modalClient && (
+        <ClientModal
+          client={modalClient}
+          onClose={() => setModalClient(null)}
+          onSaved={() => { fetchClients(); setModalClient(null); }}
+        />
       )}
+      <style>{`
+        .sortable { cursor: pointer; user-select: none; }
+        .sortable:hover { text-decoration: underline; }
+      `}</style>
     </div>
   );
 }
+const inputStyle = {
+  minWidth: 120, padding: "7px 10px", borderRadius: 8, border: "1px solid #e0e6f2", flex: "1 1 140px"
+};
+const thStyle = { padding: 10, fontWeight: 600, cursor: "pointer" };
+const tdStyle = { padding: 10 };

@@ -1,91 +1,64 @@
-// /pages/notifications.js
-import { parse } from "cookie";
+// pages/notifications.js
 
-export async function getServerSideProps(context) {
-  const { req } = context;
-  const cookies = req.headers.cookie ? parse(req.headers.cookie) : {};
-  const token = cookies.token;
-  if (!token) {
-    return {
-      redirect: {
-        destination: "/login",
-        permanent: false,
-      },
-    };
-  }
-  return { props: {} };
-}
+/**
+ * Scopo: gestione notifiche utente loggato, lettura e aggiornamento stato
+ * Autore: ChatGPT
+ * Ultima modifica: 21/05/2025
+ * Note: recupero dati utente da /api/auth/me, stile coerente, aggiornamento UI
+ */
 
 import { useEffect, useState } from "react";
 
-export default function Notifications() {
+export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Sostituisci con ID utente reale se usi autenticazione
-  const userId = 1;
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
-    fetch(`/api/notifications?user_id=${userId}`)
-      .then(r => r.json())
+    fetch("/api/auth/me")
+      .then(res => res.json())
       .then(data => {
-        setNotifications(data);
-        setLoading(false);
-      });
+        setUser(data);
+        return fetch(`/api/notifications?user_id=${data.id}`);
+      })
+      .then(res => res.json())
+      .then(data => setNotifications(data))
+      .catch(err => console.error("Errore notifiche:", err))
+      .finally(() => setLoading(false));
   }, []);
 
-  // Marcare tutte come lette (opzionale)
   const markAllRead = async () => {
-    await fetch(`/api/notifications/mark-all-read?user_id=${userId}`, { method: "POST" });
-    // Aggiorna elenco
-    fetch(`/api/notifications?user_id=${userId}`)
-      .then(r => r.json())
-      .then(data => setNotifications(data));
+    if (!user?.id) return;
+    await fetch(`/api/notifications/mark-all-read?user_id=${user.id}`, { method: "POST" });
+    const res = await fetch(`/api/notifications?user_id=${user.id}`);
+    const data = await res.json();
+    setNotifications(data);
   };
 
   return (
-    <div style={{ padding: "2rem" }}>
-      <h1 style={{ color: "#2843A1" }}>Notifiche</h1>
-      <button onClick={markAllRead} style={{
-        marginBottom: 16, background: "#2843A1", color: "#fff",
-        border: "none", borderRadius: 8, padding: "6px 20px"
-      }}>Segna tutte come lette</button>
+    <div className="p-4 space-y-6">
+      <h1 className="text-xl font-bold text-blue-900">Notifiche</h1>
+      <button
+        onClick={markAllRead}
+        className="bg-blue-800 text-white px-4 py-2 rounded shadow hover:bg-blue-700"
+      >
+        Segna tutte come lette
+      </button>
+
       {loading ? (
         <p>Caricamento notifiche...</p>
       ) : notifications.length === 0 ? (
-        <p>Nessuna notifica presente</p>
+        <p>Nessuna notifica presente.</p>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0 }}>
+        <ul className="space-y-4">
           {notifications.map(n => (
-            <li key={n.id} style={{
-              background: n.read ? "#f3f6fb" : "#ffe4e4",
-              borderRadius: 10,
-              boxShadow: n.read ? "0 1px 3px #c8d0ee11" : "0 1px 5px #f88a",
-              marginBottom: 14,
-              padding: "14px 20px",
-              color: n.read ? "#444" : "#b70d0d",
-              fontWeight: n.read ? 400 : 700,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 20
-            }}
-            onClick={async () => {
-              // Marca come letta se non lo è
-              if (!n.read) {
-                await fetch(`/api/notifications/${n.id}/read`, { method: "POST" });
-                setNotifications(notifications => notifications.map(x =>
-                  x.id === n.id ? { ...x, read: 1 } : x
-                ));
-              }
-            }}>
-              {n.read ? "🔔" : "🛎️"}
-              <span>
-                {n.message}
-                <span style={{ marginLeft: 14, fontSize: 13, color: "#999" }}>
-                  {n.created_at ? new Date(n.created_at).toLocaleString() : ""}
+            <li key={n.id} className={`p-4 border rounded ${n.read ? "bg-gray-100" : "bg-red-50"}`}>
+              <div className="flex justify-between items-center">
+                <span className={`text-sm ${n.read ? "text-gray-500" : "text-red-800 font-semibold"}`}>
+                  {n.message}
                 </span>
-              </span>
+                <span className="text-xs text-gray-400">{new Date(n.created_at).toLocaleString()}</span>
+              </div>
             </li>
           ))}
         </ul>
