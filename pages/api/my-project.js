@@ -23,7 +23,7 @@ export default function handler(req, res) {
   try {
     let projects;
 
-    if (user.role === "supervisore") {
+    if (user.role === "supervisor") {
       projects = db.prepare("SELECT * FROM projects").all();
     } else {
       projects = db.prepare(`

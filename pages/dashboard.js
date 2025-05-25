@@ -1,7 +1,7 @@
 // Percorso: /pages/dashboard.js
 // Scopo: Dashboard con header compatto, widget dinamici selezionabili e Widget Messaggi (robusto)
 // Autore: ChatGPT
-// Ultima modifica: 22/05/2025
+// Ultima modifica: 25/05/2025 (aggiunta visualizzazione nome, cognome, ruolo loggato)
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -100,7 +100,7 @@ export default function Dashboard() {
   const [showSelector, setShowSelector] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/me")
+    fetch('/api/auth/me', { credentials: "include" })
       .then(res => res.ok ? res.json() : null)
       .then(userData => {
         setUser(userData);
@@ -212,8 +212,11 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold text-blue-900 flex-shrink-0">Dashboard</h1>
         <div className="flex flex-col md:flex-row md:items-center md:gap-4 w-full">
           <span className="text-sm text-gray-600 md:border-l md:pl-4 md:ml-4">Benvenuto nella tua area personale</span>
+          {/* INTEGRAZIONE richiesta */}
           {user && (
-            <span className="text-sm text-gray-700 font-medium md:ml-4">Utente: {user.name} {user.surname} • Ruolo: {user.role}</span>
+            <span className="text-sm text-gray-700 font-medium md:ml-4">
+              Nome: {user.name} &nbsp; Cognome: {user.surname} &nbsp; • Ruolo: <span style={{ color: "#00713f", fontWeight: 600 }}>{user.role}</span>
+            </span>
           )}
         </div>
         <button

@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS roles (
 );
 `);
 
-['Amministratore', 'Supervisore', 'Tecnico', 'Operatore'].forEach(role => {
+['admin', 'supervisor', 'technician', 'Operator'].forEach(role => {
   const exists = db.prepare("SELECT id FROM roles WHERE name = ?").get(role);
   if (!exists) db.prepare("INSERT INTO roles (name) VALUES (?)").run(role);
 });

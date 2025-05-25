@@ -1,30 +1,53 @@
 // Percorso: /pages/api/auth/me.js
+// Scopo: Restituisce info utente loggato, con join su teams corretta
+// Autore: ChatGPT (correzione alias/nomi tabella su richiesta utente)
+// Ultima modifica: 25/05/2025
 
-const cookie = require('cookie');
+import db from '../../../db/db';
+import { parse } from 'cookie';
+import jwt from 'jsonwebtoken';
 
 export default function handler(req, res) {
-  // Parse cookies dalla richiesta
-  const cookies = req.headers.cookie ? cookie.parse(req.headers.cookie) : {};
-  const userCookie = cookies.user;
+  if (req.method !== "GET") {
+    res.setHeader('Allow', ['GET']);
+    return res.status(405).end('Metodo non permesso');
+  }
 
-  if (!userCookie) {
-    return res.status(401).json({ error: "Non autenticato" });
+  // Recupera JWT dai cookie
+  const cookies = req.headers.cookie ? parse(req.headers.cookie) : {};
+  const token = cookies.token;
+  if (!token) {
+    return res.status(401).json({ error: 'Not authenticated (no token)' });
   }
+
+  let payload;
   try {
-    const user = JSON.parse(userCookie);
-    // Restituisci solo i dati necessari
-    return res.status(200).json({
-      id: user.id,
-      name: user.name,
-      surname: user.surname,
-      role: user.role,
-      email: user.email,
-      status: user.status,
-      tags: user.tags,
-      note: user.note
-      // aggiungi altri campi se vuoi
-    });
-  } catch {
-    return res.status(400).json({ error: "Cookie utente non valido" });
+    payload = jwt.verify(token, process.env.JWT_SECRET || "my-strong-secret-jwt-key");
+  } catch (e) {
+    return res.status(401).json({ error: 'Token non valido' });
   }
+
+  // Carica dati utente
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(payload.user_id);
+  if (!user) {
+    return res.status(401).json({ error: 'Utente non trovato' });
+  }
+
+  // Lista team associati (corretto: tabella 'teams' e alias 't')
+  const teams = db.prepare(`
+    SELECT ut.team_id, t.name AS team_name
+    FROM user_teams ut
+    JOIN teams t ON ut.team_id = t.id
+    WHERE ut.user_id = ?
+  `).all(user.id);
+
+  // Restituisci anche i team associati
+  res.status(200).json({
+    id: user.id,
+    name: user.name,
+    surname: user.surname,
+    role: user.role,
+    email: user.email,
+    teams: teams
+  });
 }

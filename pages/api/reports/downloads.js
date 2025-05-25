@@ -18,7 +18,7 @@ export default function handler(req, res) {
   const cookies = parse(req.headers.cookie || "");
   const token = cookies.token;
   const user = verifyToken(token);
-  if (!user || !["supervisore", "amministratore"].includes(user.role)) {
+  if (!user || !["supervisor", "admin"].includes(user.role)) {
     return res.status(403).json({ error: "Non autorizzato" });
   }
 

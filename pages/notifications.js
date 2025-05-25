@@ -14,7 +14,7 @@ export default function NotificationsPage() {
 
   // Fetch user loggato + notifiche
   useEffect(() => {
-    fetch("/api/auth/me")
+    fetch('/api/auth/me', { credentials: "include" })
       .then(res => res.ok ? res.json() : null)
       .then(userData => {
         setUser(userData);

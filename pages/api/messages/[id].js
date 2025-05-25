@@ -49,9 +49,9 @@ export default async function handler(req, res) {
     `).all(id);
   }
 
-  // Audit log (solo per admin/supervisore)
+  // Audit log (solo per admin/supervisor)
   let audit = [];
-  if (user.role === "supervisore" || user.role === "amministratore") {
+  if (user.role === "supervisor" || user.role === "admin") {
     audit = db.prepare(`
       SELECT l.*, u.name, u.surname 
       FROM message_logs l

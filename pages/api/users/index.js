@@ -2,7 +2,7 @@
 // Scopo: Gestione lista e creazione utenti; solo il supervisore può creare
 // Autore: ChatGPT
 // Ultima modifica: 22/05/2025
-// Note: Sicurezza backend, POST consentito solo al supervisore
+// Note: Sicurezza backend, POST consentito solo al supervisor
 
 import db from "../../../db/db.js";
 import { parse } from "cookie";
@@ -21,9 +21,9 @@ export default function handler(req, res) {
     return res.status(200).json(users);
   }
 
-  // Protezione: solo supervisore può creare
+  // Protezione: solo supervisor può creare
   const currentUser = getCurrentUser(req);
-  if (!currentUser || currentUser.role !== "supervisore") {
+  if (!currentUser || currentUser.role !== "supervisor") {
     return res.status(403).json({ error: "Solo il supervisore può creare utenti." });
   }
 

@@ -1,61 +1,48 @@
 // Percorso: /pages/api/auth/login.js
+// Scopo: Login sicuro solo con JWT (cookie HttpOnly 'token')
+// Autore: ChatGPT
+// Ultima modifica: 25/05/2025 – 12:10:00
+// Note: Solo JWT, nessun user_id nel cookie
 
-import db from "../../../db/db.js";
 import { serialize } from "cookie";
+import jwt from "jsonwebtoken";
+import db from "../../../db/db.js";
 
-export default function handler(req, res) {
+const JWT_SECRET = process.env.JWT_SECRET || "my-strong-secret-jwt-key";
+
+export default async function handler(req, res) {
   if (req.method !== "POST") {
-    res.setHeader("Allow", ["POST"]);
-    return res.status(405).end("Metodo non permesso");
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { email, password } = req.body;
+  const { email, password } = req.body || {};
   if (!email || !password) {
-    return res.status(400).json({ error: "Email e password obbligatorie" });
+    return res.status(400).json({ error: "Email e password obbligatori" });
   }
 
-  try {
-    // LOG DI DEBUG
-    console.log("Tentativo login per:", email, password);
+  // Cerca l'utente in db
+  const user = db.prepare("SELECT * FROM users WHERE email = ? AND password = ?").get(email, password);
 
-    // Tenta la query
-    const user = db.prepare("SELECT * FROM users WHERE email = ? AND password = ?").get(email, password);
-    console.log("Utente trovato dal db:", user);
-
-    if (!user) return res.status(401).json({ error: "Credenziali non valide" });
-
-    // Serializza info utente (NON inserire password)
-    const userObj = {
-      id: user.id,
-      name: user.name,
-      surname: user.surname,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-      tags: user.tags,
-      note: user.note
-    };
-
-    // Cookie user (per UI e /me)
-    const userCookie = serialize("user", JSON.stringify(userObj), {
-      httpOnly: false, // accessibile lato client e API route
-      path: "/",
-      maxAge: 60 * 60 * 8 // 8 ore
-    });
-
-    // Cookie token (compatibilità/vecchie API, solo id utente)
-    const tokenCookie = serialize("token", user.id.toString(), {
-      httpOnly: true, // accessibile solo dal server/API
-      path: "/",
-      maxAge: 60 * 60 * 8
-    });
-
-    // Imposta entrambi
-    res.setHeader("Set-Cookie", [userCookie, tokenCookie]);
-    res.status(200).json({ message: "Login riuscito" });
-  } catch (err) {
-    // LOG ERRORE
-    console.error("ERRORE INTERNO LOGIN:", err);
-    res.status(500).json({ error: "Errore interno login" });
+  if (!user) {
+    return res.status(401).json({ error: "Credenziali non valide" });
   }
+
+  // Genera JWT token con i dati essenziali
+  const token = jwt.sign(
+    { user_id: user.id, email: user.email, role: user.role },
+    JWT_SECRET,
+    { expiresIn: "2h" }
+  );
+
+  // Setta solo il cookie 'token'
+  res.setHeader("Set-Cookie", [
+    serialize("token", token, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "strict",
+      maxAge: 60 * 60 * 2 // 2h
+    }),
+  ]);
+
+  res.status(200).json({ ok: true, id: user.id, email: user.email, name: user.name, role: user.role });
 }

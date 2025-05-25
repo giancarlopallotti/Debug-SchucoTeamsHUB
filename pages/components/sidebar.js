@@ -1,75 +1,184 @@
-// Percorso: /pages/components/sidebar.js
-// Scopo: Sidebar con integrazione Notifiche (badge unread)
-// Autore: ChatGPT
-// Ultima modifica: 22/05/2025
-// Note: Aggiunta voce Notifiche con badge dinamico
+// Percorso: /pages/sidebar.js
+// Sidebar compatta e responsive con gestione popup Info Utente tramite props da _app.js
 
 import { useRouter } from "next/router";
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import {
+  FaUsers, FaUserShield, FaProjectDiagram, FaFolderOpen,
+  FaCalendarAlt, FaTags, FaSignOutAlt, FaBars, FaTasks
+} from "react-icons/fa";
+import { useState, useEffect } from "react";
 
-export default function Sidebar({ user }) {
+const linkData = [
+  { href: "/", label: "Dashboard", icon: <FaUserShield /> },
+  { href: "/users", label: "Utenti", icon: <FaUsers /> },
+  { href: "/teams", label: "Team", icon: <FaProjectDiagram /> },
+  { href: "/files", label: "Files", icon: <FaFolderOpen /> },
+  { href: "/clients", label: "Clienti", icon: <FaUsers /> },
+  { href: "/projects", label: "Progetti", icon: <FaProjectDiagram /> },
+  { href: "/activities", label: "Attività", icon: <FaTasks />, notify: true },
+  { href: "/calendar", label: "Calendario", icon: <FaCalendarAlt /> },
+  { href: "/tags", label: "Tag", icon: <FaTags /> },
+];
+
+export default function Sidebar({
+  collapsed, setCollapsed, activitiesNotifications, showUserInfo, setShowUserInfo, loggedUser, handleLogout
+}) {
   const router = useRouter();
-  // Stato per badge notifiche non lette
-  const [unreadCount, setUnreadCount] = useState(0);
 
-  // Recupero user_id reale (fallback: null)
-  const user_id = user?.id;
+  // Responsive burger icon per mobile
+  const [showBurger, setShowBurger] = useState(false);
 
-  // Fetch count notifiche non lette
   useEffect(() => {
-    if (!user_id) return;
-    fetch(`/api/notifications?user_id=${user_id}`)
-      .then(res => res.json())
-      .then(data => {
-        const count = Array.isArray(data) ? data.filter(n => !n.read).length : 0;
-        setUnreadCount(count);
-      });
-  }, [user_id]);
-
-  const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-  };
-
-  const isSupervisorOrAdmin = user?.role === "supervisore" || user?.role === "amministratore";
+    const handleResize = () => setShowBurger(window.innerWidth < 700);
+    window.addEventListener("resize", handleResize);
+    handleResize();
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   return (
-    <aside className="w-56 min-h-screen bg-[#182764] text-white flex flex-col">
-      <div className="p-4 text-center border-b border-white/20">
-        <img src="/logo_schuco.png" alt="Logo" className="mx-auto w-20 bg-white rounded-full" />
-        <h2 className="text-lg font-bold mt-2">SchucoTeamsHUB</h2>
-      </div>
-
-      <nav className="flex-1 px-4 py-2 space-y-1">
-        <Link href="/dashboard" className="block px-2 py-2 rounded hover:bg-white/10">🏠 Dashboard</Link>
-        <Link href="/users" className="block px-2 py-2 rounded hover:bg-white/10">👥 Utenti</Link>
-        <Link href="/teams" className="block px-2 py-2 rounded hover:bg-white/10">🧩 Team</Link>
-        <Link href="/projects" className="block px-2 py-2 rounded hover:bg-white/10">📁 Progetti</Link>
-        <Link href="/clients" className="block px-2 py-2 rounded hover:bg-white/10">🏢 Clienti</Link>
-        <Link href="/files" className="block px-2 py-2 rounded hover:bg-white/10">📂 Files</Link>
-        {/* NOTIFICHE: voce con badge */}
-        <Link href="/notifications" className="relative block px-2 py-2 rounded hover:bg-white/10">
-          <span role="img" aria-label="notifiche">🔔</span> Notifiche
-          {unreadCount > 0 && (
-            <span className="absolute right-2 top-2 bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5 animate-pulse">
-              {unreadCount}
-            </span>
-          )}
-        </Link>
-        {isSupervisorOrAdmin && (
-          <Link href="/reports/downloads" className="block px-2 py-2 rounded hover:bg-white/10">📊 Report Download</Link>
-        )}
-      </nav>
-
-      <div className="p-4">
+    <>
+      {showBurger && (
         <button
-          onClick={handleLogout}
-          className="w-full px-4 py-2 bg-red-600 hover:bg-red-500 rounded"
+          onClick={() => setCollapsed(false)}
+          style={{
+            position: 'fixed', top: 18, left: 12, zIndex: 1001,
+            background: '#162364', color: 'white', border: 'none',
+            borderRadius: 8, padding: 8, fontSize: 28, boxShadow: '0 1px 8px rgba(0,0,0,0.09)', cursor: 'pointer',
+          }}
         >
-          Esci
+          <FaBars />
         </button>
-      </div>
-    </aside>
+      )}
+      <nav
+        style={{
+          width: collapsed ? 64 : 220,
+          background: '#162364',
+          color: 'white',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: collapsed ? 'center' : 'flex-start',
+          padding: '16px 0',
+          transition: 'width 0.25s',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          bottom: 0,
+          minHeight: '100vh',
+          zIndex: 1000,
+          boxShadow: '2px 0 6px rgba(0,0,0,0.10)',
+        }}
+      >
+        <div style={{ width: "100%", textAlign: 'center', marginBottom: collapsed ? 0 : 18 }}>
+          {!collapsed && (
+            <>
+              <img
+                src="/LogoSchuco.png"
+                alt="Schüco"
+                style={{ maxWidth: 110, marginBottom: 8, marginLeft: "auto", marginRight: "auto", display: "block" }}
+              />
+              <div style={{ fontWeight: 'bold', fontSize: 18 }}>SchucoTeamsHUB</div>
+              <div style={{ fontSize: 11, color: "#dedede", fontWeight: 500, marginBottom: 2, marginTop: 2 }}>
+                Powered by Giancarlo Pallotti
+              </div>
+             
+            </>
+          )}
+        </div>
+        {/* Collapse/Expand button */}
+        <button
+          onClick={() => setCollapsed(c => !c)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#76CE40',
+            fontSize: 20,
+            cursor: 'pointer',
+            marginLeft: collapsed ? 0 : 4,
+            marginBottom: 10,
+            outline: 'none'
+          }}
+          title={collapsed ? "Espandi" : "Collassa"}
+        >
+          {collapsed ? "»" : "«"}
+        </button>
+        <div style={{ width: "100%" }}>
+          {linkData.map(link => (
+            <a
+              key={link.href}
+              href={link.href}
+              style={{
+                color: 'white',
+                textDecoration: 'none',
+                background: router.pathname === link.href ? "#2843A1" : "transparent",
+                borderLeft: router.pathname === link.href ? "4px solid #76CE40" : "4px solid transparent",
+                fontWeight: router.pathname === link.href ? "bold" : "normal",
+                display: 'flex',
+                alignItems: 'center',
+                padding: collapsed ? "7px 5px" : "7px 16px",
+                justifyContent: collapsed ? "center" : "flex-start",
+                gap: 8,
+                fontSize: 15,
+                transition: 'all 0.15s',
+                position: 'relative',
+                margin: '2px 0',
+                borderRadius: '0 8px 8px 0',
+              }}
+              title={link.label}
+              onClick={() => {
+                if (window.innerWidth < 700) setCollapsed(false);
+              }}
+            >
+              {link.icon}
+              {!collapsed && link.label}
+              {link.notify && activitiesNotifications > 0 && (
+                <span style={{
+                  background: "#f43",
+                  color: "#fff",
+                  borderRadius: "50%",
+                  fontSize: 10,
+                  minWidth: 18,
+                  height: 18,
+                  padding: "0 2px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 700,
+                  position: "absolute",
+                  right: collapsed ? 4 : 9,
+                  top: 4,
+                  boxShadow: "0 1px 4px #9008"
+                }}>
+                  {activitiesNotifications}
+                </span>
+              )}
+            </a>
+          ))}
+        </div>
+        {/* Tasto ESCI */}
+        <div style={{ width: "100%", marginTop: "auto", padding: 12 }}>
+          <button
+            onClick={handleLogout}
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              padding: "8px 0",
+              background: "#e22",
+              color: "#fff",
+              fontWeight: 700,
+              border: "none",
+              borderRadius: 10,
+              cursor: "pointer",
+              fontSize: 15,
+              marginTop: 8
+            }}
+          >
+            <FaSignOutAlt style={{ fontSize: 17 }} /> Esci
+          </button>
+        </div>
+      </nav>
+    </>
   );
 }

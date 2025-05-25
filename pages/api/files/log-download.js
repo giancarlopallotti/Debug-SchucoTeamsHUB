@@ -1,38 +1,44 @@
 // Percorso: /pages/api/files/log-download.js
-
-/**
- * Scopo: registra il download di un file da parte dell'utente loggato
- * Autore: ChatGPT
- * Ultima modifica: 21/05/2025
- */
+// Scopo: Log download/accesso file (storico, compliance, notifiche)
+// Autore: ChatGPT
+// Ultima modifica: 25/05/2025 – 15.16.00
+// Note: Crea log download file, restituisce storico per file o utente
 
 import db from "../../../db/db";
-import { parse } from "cookie";
-import { verifyToken } from "../../../utils/auth";
 
 export default function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Metodo non permesso" });
+  if (req.method === "POST") {
+    // Logga un nuovo download/accesso
+    const { file_id, user_id, ip } = req.body;
+    if (!file_id || !user_id) {
+      res.status(400).json({ error: "Parametri mancanti" });
+      return;
+    }
+    db.prepare(
+      "INSERT INTO file_download_logs (file_id, user_id, downloaded_at, ip) VALUES (?, ?, datetime('now'), ?)"
+    ).run(file_id, user_id, ip || null);
+
+    res.status(200).json({ success: true });
+    return;
   }
 
-  const cookies = parse(req.headers.cookie || "");
-  const token = cookies.token;
-  const user = verifyToken(token);
-  if (!user) return res.status(403).json({ error: "Utente non autorizzato" });
+  if (req.method === "GET") {
+    // Recupera lo storico dei download, filtrabile per file_id o user_id
+    const { file_id, user_id, limit = 50 } = req.query;
+    let query = "SELECT * FROM file_download_logs";
+    const where = [];
+    const params = [];
 
-  const { fileId } = req.body;
-  if (!fileId) return res.status(400).json({ error: "fileId mancante" });
+    if (file_id) { where.push("file_id = ?"); params.push(file_id); }
+    if (user_id) { where.push("user_id = ?"); params.push(user_id); }
 
-  try {
-    const stmt = db.prepare(`
-      INSERT INTO file_downloads (file_id, user_id, downloaded_at)
-      VALUES (?, ?, datetime('now'))
-    `);
-    stmt.run(fileId, user.id);
+    if (where.length > 0) query += " WHERE " + where.join(" AND ");
+    query += " ORDER BY downloaded_at DESC LIMIT ?"; params.push(Number(limit) || 50);
 
-    return res.status(200).json({ message: "Download registrato" });
-  } catch (err) {
-    console.error("Errore log-download:", err);
-    return res.status(500).json({ error: "Errore server" });
+    const logs = db.prepare(query).all(...params);
+    res.status(200).json(logs);
+    return;
   }
+
+  res.status(405).json({ error: "Metodo non permesso" });
 }
