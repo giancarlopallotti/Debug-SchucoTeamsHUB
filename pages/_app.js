@@ -1,9 +1,15 @@
 // Percorso: /pages/_app.js
-// Scopo: App entrypoint che importa Sidebar modulare e la rende responsive
+// Scopo: App entrypoint globale, integra Sidebar e NotificationsProvider
+// Autore: ChatGPT
+// Ultima modifica: 25/05/2025
+// Note: Mantiene struttura originale + aggiunta context notifiche
+
 import '../styles/globals.css';
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import Sidebar from "./components/sidebar";
+// 👉 Importa NotificationsProvider (nuovo context)
+import { NotificationsProvider } from "./components/NotificationsContext";
 
 export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
@@ -11,6 +17,10 @@ export default function MyApp({ Component, pageProps }) {
   const [activitiesNotifications, setActivitiesNotifications] = useState(0);
   const [showUserInfo, setShowUserInfo] = useState(false);
   const [loggedUser, setLoggedUser] = useState(null);
+
+  // Sidebar visibile solo se NON siamo su /login
+  const hideSidebarRoutes = ["/login"];
+  const showSidebar = !hideSidebarRoutes.includes(router.pathname);
 
   useEffect(() => {
     fetch('/api/auth/me', { credentials: "include" })
@@ -29,22 +39,21 @@ export default function MyApp({ Component, pageProps }) {
       } catch { }
     };
     fetchNotifications();
-    const timer = setInterval(fetchNotifications, 60000);
+    const timer = setInterval(fetchNotifications, 60000); // 60s
     return () => clearInterval(timer);
   }, []);
 
-  // Sidebar visibile solo se NON siamo su /login
-  const hideSidebarRoutes = ["/login"];
-  const showSidebar = !hideSidebarRoutes.includes(router.pathname);
-
-  const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
+  const handleLogout = () => {
+    fetch("/api/auth/logout", { method: "POST" })
+      .then(() => {
+        setLoggedUser(null);
+        router.push("/login");
+      });
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'sans-serif' }}>
-      {showSidebar &&
+    <NotificationsProvider>
+      {showSidebar && (
         <Sidebar
           collapsed={collapsed}
           setCollapsed={setCollapsed}
@@ -53,17 +62,22 @@ export default function MyApp({ Component, pageProps }) {
           setShowUserInfo={setShowUserInfo}
           loggedUser={loggedUser}
           handleLogout={handleLogout}
-        />}
-      <main style={{
-        flex: 1,
-        background: '#f3f6fb',
-        minHeight: '100vh',
+        />
+      )}
+      <div style={{
         marginLeft: showSidebar ? (collapsed ? 64 : 220) : 0,
-        transition: 'margin-left 0.25s',
-        width: "100%"
+        transition: "margin-left 0.2s"
       }}>
-        <Component {...pageProps} loggedUser={loggedUser} />
-      </main>
-    </div>
+        <Component
+          {...pageProps}
+          collapsed={collapsed}
+          setCollapsed={setCollapsed}
+          showUserInfo={showUserInfo}
+          setShowUserInfo={setShowUserInfo}
+          loggedUser={loggedUser}
+          handleLogout={handleLogout}
+        />
+      </div>
+    </NotificationsProvider>
   );
 }

@@ -24,3 +24,11 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.rgl-layout { min-height: 300px; }
+@media (max-width: 768px) {
+  .rgl-layout .react-grid-item {
+    min-width: 90vw !important;
+    max-width: 99vw !important;
+  }
+}

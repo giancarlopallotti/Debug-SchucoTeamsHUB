@@ -1,138 +1,137 @@
-import React, { useState, useEffect } from "react";
-import ClientModal from "./components/ClientModal";
+// Percorso: /pages/clients.js
+// Scopo: Layout clienti stile Microsoft Windows Fluent - colorato e professionale
+// Autore: ChatGPT
+// Ultima modifica: 25/05/2025
+// Note: Migliorie grafiche, badge settore, barra filtri sticky
+
+import { useEffect, useState } from "react";
+import { FaUserTie, FaSearch, FaPlus, FaBuilding, FaSyncAlt } from "react-icons/fa";
+import ClientModal from "./components/ClientModal"; // Aggiorna il percorso se necessario
+
+const sectorColors = {
+  "Azienda": "bg-blue-500 text-white",
+  "Privato": "bg-green-500 text-white",
+  "Pubblica Amm.": "bg-purple-500 text-white",
+  "Altro": "bg-gray-400 text-black"
+};
 
 export default function ClientsPage() {
   const [clients, setClients] = useState([]);
-  const [modalClient, setModalClient] = useState(null);
   const [search, setSearch] = useState("");
-  const [companyFilter, setCompanyFilter] = useState("");
-  const [cityFilter, setCityFilter] = useState("");
-  const [provinceFilter, setProvinceFilter] = useState("");
-  const [sortField, setSortField] = useState("company");
-  const [sortDir, setSortDir] = useState("asc");
+  const [sectorFilter, setSectorFilter] = useState("");
+  const [modalClient, setModalClient] = useState(null);
 
-  useEffect(() => { fetchClients(); }, []);
-  function fetchClients() {
-    fetch("/api/clients").then(r => r.json()).then(setClients);
-  }
+  useEffect(() => {
+    fetch("/api/clients")
+      .then(res => res.json())
+      .then(data => setClients(Array.isArray(data) ? data : []));
+  }, []);
 
-  // Filtri + sort
-  const filteredClients = clients
-    .filter(c =>
-      (!search || c.name?.toLowerCase().includes(search.toLowerCase()) || c.surname?.toLowerCase().includes(search.toLowerCase()) || c.company?.toLowerCase().includes(search.toLowerCase())) &&
-      (!companyFilter || c.company === companyFilter) &&
-      (!cityFilter || c.city === cityFilter) &&
-      (!provinceFilter || c.province === provinceFilter)
+  const filteredClients = clients.filter(client =>
+    (!sectorFilter || client.sector === sectorFilter) &&
+    (!search ||
+      client.name.toLowerCase().includes(search.toLowerCase()) ||
+      (client.email && client.email.toLowerCase().includes(search.toLowerCase()))
     )
-    .sort((a, b) => {
-      const dir = sortDir === "asc" ? 1 : -1;
-      let va = a[sortField] || "";
-      let vb = b[sortField] || "";
-      return va.localeCompare(vb) * dir;
-    });
-
-  function toggleSort(field) {
-    if (sortField === field) setSortDir(sortDir === "asc" ? "desc" : "asc");
-    else { setSortField(field); setSortDir("asc"); }
-  }
-
-  function resetFilters() {
-    setSearch(""); setCompanyFilter(""); setCityFilter(""); setProvinceFilter("");
-  }
-
-  // Raccogli valori unici per filtri select
-  const companyOptions = [...new Set(clients.map(c => c.company).filter(Boolean))];
-  const cityOptions = [...new Set(clients.map(c => c.city).filter(Boolean))];
-  const provinceOptions = [...new Set(clients.map(c => c.province).filter(Boolean))];
+  );
 
   return (
-    <div style={{ padding: "2rem" }}>
-      <h1 style={{ fontWeight: "bold", marginBottom: 22 }}>Clienti</h1>
+    <div className="min-h-screen bg-[#f3f6fd] px-0 md:px-8 py-4">
       {/* Barra filtri */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 20, alignItems: "center" }}>
-        <input placeholder="Cerca nome, cognome o azienda..." value={search} onChange={e => setSearch(e.target.value)} style={inputStyle} />
-        <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} style={inputStyle}>
-          <option value="">Tutte le aziende</option>
-          {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select value={cityFilter} onChange={e => setCityFilter(e.target.value)} style={inputStyle}>
-          <option value="">Tutte le città</option>
-          {cityOptions.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select value={provinceFilter} onChange={e => setProvinceFilter(e.target.value)} style={inputStyle}>
-          <option value="">Tutte le province</option>
-          {provinceOptions.map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
-        <button onClick={resetFilters} style={{
-          background: "#e6e9f6", border: "none", borderRadius: 8, padding: "8px 16px",
-          fontWeight: 600, color: "#23285A", cursor: "pointer"
-        }}>Reset</button>
-        <div style={{ flex: "1 0 90px", textAlign: "right" }}>
-          <button onClick={() => setModalClient({})}
-            style={{
-              background: "#0749a6", color: "#fff", padding: "10px 22px", fontWeight: "bold",
-              border: "none", borderRadius: 12, fontSize: 16, cursor: "pointer"
-            }}>
-            + Nuovo Cliente
+      <div className="sticky top-0 z-20 bg-white/80 backdrop-blur-md flex flex-col md:flex-row items-center justify-between shadow-md rounded-2xl p-4 mb-8 border border-blue-100">
+        <div className="flex items-center gap-2 w-full md:w-auto mb-2 md:mb-0">
+          <FaBuilding className="text-blue-500 text-2xl mr-2" />
+          <input
+            type="text"
+            placeholder="Cerca cliente..."
+            className="rounded-xl px-4 py-2 border border-blue-200 bg-white shadow focus:outline-blue-400 transition"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <select
+            className="rounded-xl px-3 py-2 ml-2 border border-blue-200 bg-white text-blue-700"
+            value={sectorFilter}
+            onChange={e => setSectorFilter(e.target.value)}
+          >
+            <option value="">Tutti i settori</option>
+            <option value="Azienda">Azienda</option>
+            <option value="Privato">Privato</option>
+            <option value="Pubblica Amm.">Pubblica Amm.</option>
+            <option value="Altro">Altro</option>
+          </select>
+          <button
+            className="ml-2 rounded-xl bg-blue-600 text-white px-4 py-2 font-semibold shadow hover:bg-blue-700 transition"
+            onClick={() => setModalClient({})}
+          >
+            <FaPlus className="inline mr-2" /> Nuovo cliente
           </button>
         </div>
+        <button
+          className="rounded-xl bg-blue-100 text-blue-700 px-4 py-2 font-semibold hover:bg-blue-200 transition flex items-center"
+          onClick={() => window.location.reload()}
+        >
+          <FaSyncAlt className="mr-2" /> Aggiorna elenco
+        </button>
       </div>
-      {/* Tabella */}
-      <div style={{
-        background: "#fff", borderRadius: 16, boxShadow: "0 1px 4px #0002", padding: 18, maxWidth: 1350, margin: "auto"
-      }}>
-        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
-          <thead>
-            <tr style={{ background: "#f6f8fa" }}>
-              <th style={thStyle} onClick={() => toggleSort("company")}>Azienda {sortField === "company" ? (sortDir === "asc" ? "▲" : "▼") : ""}</th>
-              <th style={thStyle} onClick={() => toggleSort("surname")}>Cognome {sortField === "surname" ? (sortDir === "asc" ? "▲" : "▼") : ""}</th>
-              <th style={thStyle} onClick={() => toggleSort("name")}>Nome {sortField === "name" ? (sortDir === "asc" ? "▲" : "▼") : ""}</th>
-              <th style={thStyle}>Città</th>
-              <th style={thStyle}>Provincia</th>
-              <th style={thStyle}>Contatto</th>
-              <th style={thStyle}>Azioni</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredClients.map((c, i) => (
-              <tr key={c.id} style={{ background: i % 2 === 0 ? "#f8fbff" : "#fff" }}>
-                <td style={tdStyle}>{c.company}</td>
-                <td style={tdStyle}>{c.surname}</td>
-                <td style={tdStyle}>{c.name}</td>
-                <td style={tdStyle}>{c.city}</td>
-                <td style={tdStyle}>{c.province}</td>
-                <td style={tdStyle}>{c.main_contact}</td>
-                <td style={tdStyle}>
-                  <button
-                    title="Modifica"
-                    onClick={() => setModalClient(c)}
-                    style={{
-                      background: "#f5f5f5", border: "none", borderRadius: 8, padding: "6px 14px",
-                      cursor: "pointer"
-                    }}>✏️</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+      {/* Lista clienti */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredClients.map(client => (
+          <div
+            key={client.id}
+            className="rounded-2xl bg-white hover:shadow-2xl shadow-md p-5 flex flex-col gap-2 border border-blue-100 transition-all duration-200 relative"
+            style={{ minHeight: 170 }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-blue-100 shadow-sm bg-blue-50 flex items-center justify-center">
+                <FaUserTie className="text-blue-400 text-3xl" />
+              </div>
+              <div>
+                <div className="font-bold text-lg text-blue-800">{client.name}</div>
+                <div className="text-gray-500 text-sm">{client.email}</div>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  <span
+                    className={`px-3 py-1 rounded-2xl text-xs font-semibold shadow ${sectorColors[client.sector] || "bg-gray-200 text-gray-800"}`}
+                  >
+                    {client.sector}
+                  </span>
+                  {client.contact && (
+                    <span className="px-3 py-1 rounded-2xl text-xs bg-yellow-200 text-yellow-900 font-semibold flex items-center gap-1">
+                      <FaUserTie className="inline" /> {client.contact}
+                    </span>
+                  )}
+                  {client.status === "inactive" && (
+                    <span className="px-3 py-1 rounded-2xl text-xs bg-red-100 text-red-700 font-semibold">Non attivo</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="mt-auto flex gap-2">
+              <button
+                className="px-4 py-2 rounded-xl bg-blue-50 text-blue-800 font-semibold shadow hover:bg-blue-200 transition"
+                onClick={() => setModalClient(client)}
+              >
+                Modifica
+              </button>
+              <button
+                className="px-4 py-2 rounded-xl bg-red-100 text-red-600 font-semibold shadow hover:bg-red-200 transition"
+                // onClick={() => handleDeleteClient(client.id)}
+              >
+                Elimina
+              </button>
+            </div>
+            {/* badge laterale */}
+            <span className="absolute top-3 right-3 text-xs bg-blue-200 text-blue-700 rounded-full px-3 py-1 shadow">
+              ID: {client.id}
+            </span>
+          </div>
+        ))}
       </div>
-      {/* Modale creazione/modifica cliente */}
+
+      {/* Modal gestione cliente */}
       {modalClient && (
-        <ClientModal
-          client={modalClient}
-          onClose={() => setModalClient(null)}
-          onSaved={() => { fetchClients(); setModalClient(null); }}
-        />
+        <ClientModal client={modalClient} onClose={() => setModalClient(null)} />
       )}
-      <style>{`
-        .sortable { cursor: pointer; user-select: none; }
-        .sortable:hover { text-decoration: underline; }
-      `}</style>
     </div>
   );
 }
-const inputStyle = {
-  minWidth: 120, padding: "7px 10px", borderRadius: 8, border: "1px solid #e0e6f2", flex: "1 1 140px"
-};
-const thStyle = { padding: 10, fontWeight: 600, cursor: "pointer" };
-const tdStyle = { padding: 10 };

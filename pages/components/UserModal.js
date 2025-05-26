@@ -1,193 +1,319 @@
 // Percorso: /pages/components/UserModal.js
-// Scopo: Gestione utenti con AVATAR (come originale) + PATCH gestione errori salvataggio/email duplicata
-// Autore: ChatGPT
-// Ultima modifica: 24/05/2025  -  Versione V3 (avatar mantenuto, patch errori visivi)
-// Note: Mostra errore email duplicata (o altri errori) senza alterare il layout o blocchi originali
-
 import { useState, useEffect, useRef } from "react";
 
-export default function UserModal({ user = {}, onClose, onSave, currentUser, roles = [], tags = [] }) {
-  const isNew = !user.id;
-  const [form, setForm] = useState({
-    ...user,
-    tags: Array.isArray(user.tags) ? user.tags : (user.tags ? user.tags.split(",") : []),
-    avatar: user.avatar || "",
-  });
-  const [error, setError] = useState("");
+export default function UserModal({ user = {}, onClose, roles = [], viewOnly = false, onTagSearch }) {
+  const [name, setName] = useState(user.name || "");
+  const [surname, setSurname] = useState(user.surname || "");
+  const [email, setEmail] = useState(user.email || "");
+  const [phone, setPhone] = useState(user.phone || "");
+  const [address, setAddress] = useState(user.address || "");
+  const [note, setNote] = useState(user.note || "");
+  const [role, setRole] = useState(user.role || "");
+  const [status, setStatus] = useState(user.status || "attivo");
+  const [avatar, setAvatar] = useState(user.avatar || "");
+  const [tags, setTags] = useState(user.tags || "");
+  const [availableTags, setAvailableTags] = useState([]);
   const [saving, setSaving] = useState(false);
-  const fileInput = useRef();
+  const [error, setError] = useState("");
+  const fileInputRef = useRef();
 
   useEffect(() => {
-    setForm({
-      ...user,
-      tags: Array.isArray(user.tags) ? user.tags : (user.tags ? user.tags.split(",") : []),
-      avatar: user.avatar || "",
-    });
+    setName(user.name || "");
+    setSurname(user.surname || "");
+    setEmail(user.email || "");
+    setPhone(user.phone || "");
+    setAddress(user.address || "");
+    setNote(user.note || "");
+    setRole(user.role || "");
+    setStatus(user.status || "attivo");
+    setAvatar(user.avatar || "");
+    setTags(user.tags || "");
     setError("");
   }, [user]);
 
-  function handleChange(e) {
-    const { name, value } = e.target;
-    setForm(f => ({ ...f, [name]: value }));
+  useEffect(() => {
+    fetch("/api/tags")
+      .then(res => res.json())
+      .then(list => setAvailableTags(list || []));
+  }, []);
+
+  function checkRequired() {
+    if (!name.trim() || !surname.trim() || !email.trim() || !role.trim() || !status.trim()) {
+      setError("Compilare tutti i campi obbligatori (*)");
+      return false;
+    }
+    setError("");
+    return true;
   }
 
-  function handleTags(tag) {
-    setForm(f => {
-      let newTags = Array.isArray(f.tags) ? [...f.tags] : [];
-      if (newTags.includes(tag)) {
-        newTags = newTags.filter(t => t !== tag);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!checkRequired()) return;
+    setSaving(true);
+    const userData = {
+      ...user,
+      name,
+      surname,
+      email,
+      phone,
+      address,
+      note,
+      role,
+      status,
+      avatar,
+      tags
+    };
+    try {
+      const res = await fetch(`/api/users${user.id ? `/${user.id}` : ""}`, {
+        method: user.id ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(userData)
+      });
+      if (res.ok) {
+        onClose(true);
       } else {
-        newTags.push(tag);
+        setError("Errore durante il salvataggio");
       }
-      return { ...f, tags: newTags };
-    });
-  }
+    } catch {
+      setError("Errore durante il salvataggio");
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  // PATCH avatar: caricamento file immagine o da url
-  function handleAvatarFile(e) {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith("image/")) {
+  const handleAvatar = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) {
       const reader = new FileReader();
-      reader.onload = evt => {
-        setForm(f => ({ ...f, avatar: evt.target.result }));
-      };
+      reader.onloadend = () => setAvatar(reader.result);
       reader.readAsDataURL(file);
     }
-  }
+  };
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setSaving(true);
-    setError("");
-    try {
-      await onSave({ ...form, tags: (form.tags || []).join(",") });
-    } catch (err) {
-      let msg = "Errore salvataggio utente. Riprova.";
-      if (err.message && err.message.includes("UNIQUE constraint failed: users.email")) {
-        msg = "L'email è già in uso. Inserisci un indirizzo email diverso.";
-      } else if (err.message) {
-        msg = err.message;
-      }
-      setError(msg);
+  const openFileDialog = () => {
+    if (!viewOnly && fileInputRef.current) {
+      fileInputRef.current.click();
     }
-    setSaving(false);
-  }
+  };
+
+  // Tag attivi dell'utente
+  const tagArray = (tags || "")
+    .split(",")
+    .map(t => t.trim())
+    .filter(t => t.length);
+
+  // Aggiungi/rimuovi tag
+  const toggleTag = (tagName) => {
+    if (viewOnly) return;
+    let arr = [...tagArray];
+    if (arr.includes(tagName)) {
+      arr = arr.filter(t => t !== tagName);
+    } else {
+      arr.push(tagName);
+    }
+    setTags(arr.join(", "));
+  };
+
+  const handleTagClick = (tag) => {
+    if (onTagSearch) onTagSearch(tag);
+  };
 
   return (
-    <div className="modal-user" style={{
-      position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", zIndex: 1200,
-      background: "rgba(40,50,85,0.14)", display: "flex", alignItems: "center", justifyContent: "center"
-    }}>
-      <form onSubmit={handleSubmit} style={{
-        background: "#fff", borderRadius: 18, minWidth: 380, maxWidth: 580,
-        boxShadow: "0 2px 24px #0014", padding: 36, margin: 8, width: "100%"
-      }}>
-        <h2 style={{ fontWeight: 700, fontSize: 21, color: "#26316c", marginBottom: 22 }}>{isNew ? "Nuovo utente" : "Modifica utente"}</h2>
-        {error && <div style={{
-          background: "#ffe1e1", color: "#b11c1c", fontWeight: 600,
-          padding: "10px 18px", borderRadius: 8, marginBottom: 12,
-          fontSize: 15, border: "1px solid #ffaeae"
-        }}>{error}</div>}
-        {/* --- AVATAR --- */}
-        <div style={{display:'flex', alignItems:'center', gap:20, marginBottom:22}}>
-          <div style={{width:52, height:52, borderRadius:30, background:'#f3f3fa', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:22, color:'#5a638a', border:'2px solid #f0f0ff'}}>
-            {form.avatar
-              ? <img src={form.avatar} alt="avatar" style={{width:52, height:52, borderRadius:26, objectFit:'cover'}} />
-              : `${(form.name?.[0]||'').toUpperCase()}${(form.surname?.[0]||'').toUpperCase()}`}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 animate-fadein">
+      <form
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-xl p-8 mx-2 relative flex flex-col gap-5"
+        onSubmit={handleSubmit}
+      >
+        <h2 className="text-2xl font-bold mb-2 text-blue-900">
+          {viewOnly
+            ? "Dettaglio utente"
+            : (user.id ? "Modifica utente" : "Nuovo utente")
+          }
+        </h2>
+        <div className="mb-2 text-sm text-gray-600">
+          I campi contrassegnati da <span className="text-red-500">*</span> sono obbligatori
+        </div>
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded mb-2">{error}</div>
+        )}
+
+        {/* Avatar */}
+        <div className="flex items-center gap-4 mb-2">
+          <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-blue-100 bg-blue-50 flex items-center justify-center">
+            {avatar
+              ? <img src={avatar} alt="avatar" className="object-cover w-full h-full" />
+              : <span className="text-2xl font-bold text-gray-400">{name ? name[0] : "?"}</span>
+            }
           </div>
-          <div style={{display:'flex', flexDirection:'column', gap:5}}>
-            <button
-              type="button"
-              style={{fontWeight:600, fontSize:13, borderRadius:7, background:'#c6d6f7', border:'none', color:'#29437a', padding:'7px 18px', cursor:'pointer', marginBottom:2, minWidth:90, minHeight:30}}
-              onClick={() => fileInput.current.click()}
-            >Sfoglia immagine</button>
-            <input
-              ref={fileInput}
-              type="file"
-              accept="image/*"
-              style={{ display: "none" }}
-              onChange={handleAvatarFile}
-            />
-            <input
-              type="url"
-              placeholder="URL immagine avatar (opzionale)"
-              style={{marginTop:2, fontSize:12, borderRadius:7, border:'1px solid #eceffc', padding:'4px 7px', maxWidth:170}}
-              value={form.avatar && form.avatar.startsWith('http') ? form.avatar : ''}
-              onChange={e => setForm(f => ({ ...f, avatar: e.target.value }))}
-            />
+          {!viewOnly && (
+            <label className="block">
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatar}
+                ref={fileInputRef}
+              />
+              <button
+                type="button"
+                className="ml-2 px-4 py-2 bg-blue-100 text-blue-700 rounded font-semibold hover:bg-blue-200 transition"
+                onClick={openFileDialog}
+              >
+                Cambia immagine
+              </button>
+            </label>
+          )}
+        </div>
+
+        {/* Campi principali */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold mb-1">Nome <span className="text-red-500">*</span></label>
+            {viewOnly ? (
+              <div className="w-full rounded-xl px-3 py-2 border border-blue-200 bg-gray-100">{name}</div>
+            ) : (
+              <input required type="text" className="w-full rounded-xl px-3 py-2 border border-blue-200" value={name} onChange={e => setName(e.target.value)} />
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Cognome <span className="text-red-500">*</span></label>
+            {viewOnly ? (
+              <div className="w-full rounded-xl px-3 py-2 border border-blue-200 bg-gray-100">{surname}</div>
+            ) : (
+              <input required type="text" className="w-full rounded-xl px-3 py-2 border border-blue-200" value={surname} onChange={e => setSurname(e.target.value)} />
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Email <span className="text-red-500">*</span></label>
+            {viewOnly ? (
+              <div className="w-full rounded-xl px-3 py-2 border border-blue-200 bg-gray-100">{email}</div>
+            ) : (
+              <input required type="email" className="w-full rounded-xl px-3 py-2 border border-blue-200" value={email} onChange={e => setEmail(e.target.value)} />
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Telefono</label>
+            {viewOnly ? (
+              <div className="w-full rounded-xl px-3 py-2 border border-blue-200 bg-gray-100">{phone}</div>
+            ) : (
+              <input type="text" className="w-full rounded-xl px-3 py-2 border border-blue-200" value={phone} onChange={e => setPhone(e.target.value)} />
+            )}
           </div>
         </div>
-        {/* --- FIELDS --- */}
-        <div style={{ display: "flex", gap: 18 }}>
-          <div style={{ flex: 1 }}>
-            <label>Nome *</label>
-            <input required name="name" value={form.name || ""} onChange={handleChange}
-              style={{ width: "100%", marginBottom: 12, borderRadius: 8, border: "1px solid #eee", padding: 8 }} />
+
+        {/* Row: Ruolo e Stato */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold mb-1">Ruolo <span className="text-red-500">*</span></label>
+            {viewOnly ? (
+              <div className="w-full rounded-xl px-3 py-2 border border-blue-200 bg-gray-100">{role}</div>
+            ) : (
+              <select
+                required
+                value={role || ""}
+                onChange={e => setRole(e.target.value)}
+                className="w-full rounded-xl px-3 py-2 border border-blue-200 bg-white text-gray-900"
+              >
+                <option value="">Seleziona ruolo</option>
+                {roles && Array.isArray(roles) && roles.map(roleOpt =>
+                  <option key={roleOpt} value={roleOpt}>{roleOpt}</option>
+                )}
+              </select>
+            )}
           </div>
-          <div style={{ flex: 1 }}>
-            <label>Cognome *</label>
-            <input required name="surname" value={form.surname || ""} onChange={handleChange}
-              style={{ width: "100%", marginBottom: 12, borderRadius: 8, border: "1px solid #eee", padding: 8 }} />
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 18 }}>
-          <div style={{ flex: 1 }}>
-            <label>Email *</label>
-            <input required name="email" type="email" value={form.email || ""} onChange={handleChange}
-              style={{ width: "100%", marginBottom: 12, borderRadius: 8, border: "1px solid #eee", padding: 8 }} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label>Telefono</label>
-            <input name="phone" value={form.phone || ""} onChange={handleChange}
-              style={{ width: "100%", marginBottom: 12, borderRadius: 8, border: "1px solid #eee", padding: 8 }} />
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 18 }}>
-          <div style={{ flex: 1 }}>
-            <label>Ruolo *</label>
-            <select required name="role" value={form.role || ""} onChange={handleChange}
-              style={{ width: "100%", marginBottom: 12, borderRadius: 8, border: "1px solid #eee", padding: 8 }}>
-              <option value="">Seleziona ruolo</option>
-              {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
-            </select>
-          </div>
-          <div style={{ flex: 1 }}>
-            <label>Stato *</label>
-            <select required name="status" value={form.status || ""} onChange={handleChange}
-              style={{ width: "100%", marginBottom: 12, borderRadius: 8, border: "1px solid #eee", padding: 8 }}>
-              <option value="attivo">attivo</option>
-              <option value="bloccato">bloccato</option>
-              <option value="archiviato">archiviato</option>
-            </select>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Stato <span className="text-red-500">*</span></label>
+            {viewOnly ? (
+              <div className="w-full rounded-xl px-3 py-2 border border-blue-200 bg-gray-100">{status}</div>
+            ) : (
+              <select
+                required
+                value={status}
+                onChange={e => setStatus(e.target.value)}
+                className="w-full rounded-xl px-3 py-2 border border-blue-200 bg-white text-gray-900"
+              >
+                <option value="attivo">attivo</option>
+                <option value="inactive">non attivo</option>
+              </select>
+            )}
           </div>
         </div>
-        <div style={{ marginBottom: 12 }}>
-          <label>Tag</label>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
-            {tags.map(tag => (
-              <button type="button" key={tag.id}
-                style={{
-                  background: form.tags.includes(tag.name) ? "#3350ff" : "#f4f5ff",
-                  color: form.tags.includes(tag.name) ? "#fff" : "#2b3678",
-                  border: "none", borderRadius: 14, padding: "3px 13px", fontSize: 13, margin: "2px 3px",
-                  fontWeight: 500, letterSpacing: 0.3,
-                  opacity: 0.93, cursor: "pointer"
-                }}
-                onClick={() => handleTags(tag.name)}
-              >{tag.name}</button>
+
+        {/* Tag disponibili */}
+        <div>
+          <label className="block text-sm font-semibold mb-1">Tag disponibili</label>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {availableTags.length === 0 && (
+              <span className="text-xs text-gray-400">Nessun tag disponibile</span>
+            )}
+            {availableTags.map(tag => (
+              <button
+                key={tag.id}
+                type="button"
+                className={`px-2 py-0.5 rounded-full text-xs font-semibold border 
+                  ${tagArray.includes(tag.name)
+                    ? "bg-green-600 text-white border-green-600"
+                    : "bg-green-100 text-green-700 border-green-200"}
+                  cursor-pointer hover:bg-green-200 transition`}
+                style={{ pointerEvents: viewOnly ? "none" : "auto" }}
+                onClick={() => toggleTag(tag.name)}
+              >
+                #{tag.name}
+              </button>
             ))}
           </div>
+          {/* Mostra tag attivi come badge cliccabili per ricerca */}
+          <div className="flex flex-wrap gap-2 mb-2">
+            {tagArray.map(tag =>
+              <button
+                key={tag}
+                type="button"
+                className="bg-green-200 text-green-900 border border-green-300 rounded-full px-2 py-0.5 text-xs font-semibold cursor-pointer hover:bg-green-300 transition"
+                onClick={() => handleTagClick(tag)}
+                title={`Cerca per tag: ${tag}`}
+              >
+                #{tag}
+              </button>
+            )}
+          </div>
+          {!viewOnly && (
+            <input
+              type="text"
+              className="w-full rounded-xl px-3 py-2 border border-blue-200"
+              value={tags}
+              onChange={e => setTags(e.target.value)}
+              placeholder="Aggiungi nuovi tag separati da virgola"
+            />
+          )}
         </div>
         <div>
-          <label>Note</label>
-          <textarea name="note" value={form.note || ""} onChange={handleChange}
-            style={{ width: "100%", minHeight: 56, resize: "vertical", borderRadius: 8, border: "1px solid #eee", padding: 8 }} />
+          <label className="block text-sm font-semibold mb-1">Note</label>
+          {viewOnly ? (
+            <div className="w-full rounded-xl px-3 py-2 border border-blue-200 bg-gray-100">{note}</div>
+          ) : (
+            <textarea className="w-full rounded-xl px-3 py-2 border border-blue-200" value={note} onChange={e => setNote(e.target.value)} rows={2} />
+          )}
         </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 26 }}>
-          <button type="button" onClick={onClose}
-            style={{ background: "#f3f3f6", color: "#2c2c34", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 16, padding: "9px 28px", cursor: "pointer" }}>Annulla</button>
-          <button type="submit" disabled={saving}
-            style={{ background: "#0070f3", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 16, padding: "9px 28px", cursor: "pointer", opacity: saving ? 0.7 : 1 }}>Salva</button>
+
+        {/* Bottoni */}
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            type="button"
+            className="px-6 py-2 rounded-xl bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300 transition"
+            onClick={() => onClose()}
+            disabled={saving}
+          >
+            Chiudi
+          </button>
+          {!viewOnly && (
+            <button
+              type="submit"
+              className="px-6 py-2 rounded-xl bg-blue-600 text-white font-semibold shadow hover:bg-blue-700 transition"
+              disabled={saving}
+            >
+              Salva
+            </button>
+          )}
         </div>
       </form>
     </div>

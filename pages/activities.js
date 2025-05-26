@@ -1,224 +1,162 @@
-// /pages/activities.js
-import { parse } from "cookie";
-
-export async function getServerSideProps(context) {
-  const { req } = context;
-  const cookies = req.headers.cookie ? parse(req.headers.cookie) : {};
-  const token = cookies.token;
-  if (!token) {
-    return {
-      redirect: {
-        destination: "/login",
-        permanent: false,
-      },
-    };
-  }
-  return { props: {} };
-}
+// Percorso: /pages/activities.js
+// Scopo: Layout attività stile Microsoft Windows Fluent - colorato e professionale
+// Autore: ChatGPT
+// Ultima modifica: 25/05/2025
+// Note: Migliorie grafiche, badge stato/tipo/utente, barra filtri sticky
 
 import { useEffect, useState } from "react";
+import { FaTasks, FaSearch, FaPlus, FaUser, FaSyncAlt, FaClock } from "react-icons/fa";
+import ActivityModal from "./components/ActivityModal"; // Aggiorna percorso se necessario
 
-export default function Activities() {
+const statusColors = {
+  "Da fare": "bg-blue-500 text-white",
+  "In corso": "bg-yellow-500 text-white",
+  "Completata": "bg-green-500 text-white",
+  "Sospesa": "bg-gray-400 text-black"
+};
+
+const typeColors = {
+  "Task": "bg-purple-500 text-white",
+  "Evento": "bg-orange-500 text-white",
+  "Reminder": "bg-blue-300 text-white",
+  "Altro": "bg-gray-400 text-black"
+};
+
+export default function ActivitiesPage() {
   const [activities, setActivities] = useState([]);
-  const [msg, setMsg] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  // State for insert form
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    project_id: "",
-    assigned_to: "",
-    status: "da_iniziare",
-    priority: "normale",
-    due_date: ""
-  });
-
-  // Lists for projects and users for select
-  const [projects, setProjects] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [modalActivity, setModalActivity] = useState(null);
 
   useEffect(() => {
-    fetchActivities();
-    fetch("/api/projects").then(r => r.json()).then(setProjects);
-    fetch("/api/users").then(r => r.json()).then(setUsers);
+    fetch("/api/activities")
+      .then(res => res.json())
+      .then(data => setActivities(Array.isArray(data) ? data : []));
   }, []);
 
-  const fetchActivities = () => {
-    setLoading(true);
-    fetch("/api/activities")
-      .then(r => r.json())
-      .then(data => {
-        setActivities(data);
-        setLoading(false);
-      })
-      .catch(() => {
-        setMsg("Errore caricamento attività");
-        setLoading(false);
-      });
-  };
-
-  const handleChange = e => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async e => {
-    e.preventDefault();
-    setMsg("");
-    if (!form.title) return setMsg("Titolo obbligatorio!");
-    const res = await fetch("/api/activities", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form)
-    });
-    if (res.ok) {
-      setMsg("Attività inserita!");
-      setForm({
-        title: "",
-        description: "",
-        project_id: "",
-        assigned_to: "",
-        status: "da_iniziare",
-        priority: "normale",
-        due_date: ""
-      });
-      fetchActivities();
-    } else {
-      const err = await res.json();
-      setMsg("Errore: " + (err.message || "Impossibile inserire attività"));
-    }
-  };
+  const filteredActivities = activities.filter(activity =>
+    (!statusFilter || activity.status === statusFilter) &&
+    (!typeFilter || activity.type === typeFilter) &&
+    (!search ||
+      activity.title?.toLowerCase().includes(search.toLowerCase()) ||
+      activity.user?.toLowerCase().includes(search.toLowerCase())
+    )
+  );
 
   return (
-    <div style={{ padding: "2rem" }}>
-      <h1 style={{ color: "#2843A1" }}>Gestione Attività / Task</h1>
-
-      {/* Insert Form */}
-      <form onSubmit={handleSubmit} style={{
-        marginBottom: 30, background: "#f5faff", padding: 20, borderRadius: 12, boxShadow: "0 2px 8px #bde2ee33"
-      }}>
-        <h3>Nuova Attività</h3>
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <input name="title" value={form.title} onChange={handleChange}
-            placeholder="Titolo attività" style={inputStyle} required />
-          <input name="description" value={form.description} onChange={handleChange}
-            placeholder="Descrizione" style={inputStyle} />
-          <select name="project_id" value={form.project_id} onChange={handleChange} style={inputStyle}>
-            <option value="">Progetto</option>
-            {projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+    <div className="min-h-screen bg-[#f3f6fd] px-0 md:px-8 py-4">
+      {/* Barra filtri */}
+      <div className="sticky top-0 z-20 bg-white/80 backdrop-blur-md flex flex-col md:flex-row items-center justify-between shadow-md rounded-2xl p-4 mb-8 border border-blue-100">
+        <div className="flex items-center gap-2 w-full md:w-auto mb-2 md:mb-0">
+          <FaTasks className="text-blue-500 text-2xl mr-2" />
+          <input
+            type="text"
+            placeholder="Cerca attività..."
+            className="rounded-xl px-4 py-2 border border-blue-200 bg-white shadow focus:outline-blue-400 transition"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <select
+            className="rounded-xl px-3 py-2 ml-2 border border-blue-200 bg-white text-blue-700"
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+          >
+            <option value="">Tutti gli stati</option>
+            <option value="Da fare">Da fare</option>
+            <option value="In corso">In corso</option>
+            <option value="Completata">Completata</option>
+            <option value="Sospesa">Sospesa</option>
           </select>
-          <select name="assigned_to" value={form.assigned_to} onChange={handleChange} style={inputStyle}>
-            <option value="">Assegna a</option>
-            {users.map(u => <option key={u.id} value={u.id}>{u.name} {u.surname}</option>)}
+          <select
+            className="rounded-xl px-3 py-2 ml-2 border border-blue-200 bg-white text-blue-700"
+            value={typeFilter}
+            onChange={e => setTypeFilter(e.target.value)}
+          >
+            <option value="">Tutti i tipi</option>
+            <option value="Task">Task</option>
+            <option value="Evento">Evento</option>
+            <option value="Reminder">Reminder</option>
+            <option value="Altro">Altro</option>
           </select>
-          <select name="status" value={form.status} onChange={handleChange} style={inputStyle}>
-            <option value="da_iniziare">Da Iniziare</option>
-            <option value="in_corso">In Corso</option>
-            <option value="completata">Completata</option>
-            <option value="scaduta">Scaduta</option>
-          </select>
-          <select name="priority" value={form.priority} onChange={handleChange} style={inputStyle}>
-            <option value="bassa">Bassa</option>
-            <option value="normale">Normale</option>
-            <option value="alta">Alta</option>
-          </select>
-          <input type="date" name="due_date" value={form.due_date} onChange={handleChange} style={inputStyle} />
-          <button type="submit" style={{
-            background: "#2843A1", color: "#fff", border: "none",
-            padding: "8px 24px", borderRadius: 8, fontWeight: 600
-          }}>Inserisci</button>
+          <button
+            className="ml-2 rounded-xl bg-blue-600 text-white px-4 py-2 font-semibold shadow hover:bg-blue-700 transition"
+            onClick={() => setModalActivity({})}
+          >
+            <FaPlus className="inline mr-2" /> Nuova attività
+          </button>
         </div>
-        {msg && <div style={{ marginTop: 10, color: msg.startsWith("Errore") ? "#b70d0d" : "#267800" }}>{msg}</div>}
-      </form>
-
-      {/* Activities Table */}
-      <div style={{
-        overflowX: "auto",
-        borderRadius: 12,
-        boxShadow: "0 2px 12px #bde2ee44",
-        background: "#fff",
-        padding: "18px"
-      }}>
-        <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 850 }}>
-          <thead>
-            <tr style={{
-              background: "#e8f0fe",
-              color: "#2843A1",
-              textAlign: "left",
-              fontWeight: 700
-            }}>
-              <th style={thStyle}>ID</th>
-              <th style={thStyle}>Titolo</th>
-              <th style={thStyle}>Descrizione</th>
-              <th style={thStyle}>Progetto</th>
-              <th style={thStyle}>Assegnato a</th>
-              <th style={thStyle}>Stato</th>
-              <th style={thStyle}>Priorità</th>
-              <th style={thStyle}>Scadenza</th>
-              <th style={thStyle}>Creato il</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={9} style={{ textAlign: "center", padding: 30, color: "#999" }}>
-                  Caricamento...
-                </td>
-              </tr>
-            ) : activities.length === 0 ? (
-              <tr>
-                <td colSpan={9} style={{ textAlign: "center", padding: 30, color: "#999" }}>
-                  Nessuna attività presente
-                </td>
-              </tr>
-            ) : (
-              activities.map((a, i) => (
-                <tr key={a.id} style={{
-                  background: i % 2 === 0 ? "#f9fbff" : "#f1f6fb"
-                }}>
-                  <td style={tdStyle}>{a.id}</td>
-                  <td style={tdStyle}>{a.title}</td>
-                  <td style={tdStyle}>{a.description}</td>
-                  <td style={tdStyle}>{a.project_title || "-"}</td>
-                  <td style={tdStyle}>{a.assigned_name ? `${a.assigned_name} ${a.assigned_surname}` : "-"}</td>
-                  <td style={{
-                    ...tdStyle,
-                    fontWeight: 600,
-                    color: a.status === "in_corso" ? "#1265d2" : a.status === "completata" ? "#13ba3f" : a.status === "scaduta" ? "#b70d0d" : "#b57a0e"
-                  }}>
-                    {a.status}
-                  </td>
-                  <td style={tdStyle}>{a.priority}</td>
-                  <td style={tdStyle}>{a.due_date ? new Date(a.due_date).toLocaleDateString() : "-"}</td>
-                  <td style={tdStyle}>{a.created_at ? new Date(a.created_at).toLocaleString() : "-"}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        <button
+          className="rounded-xl bg-blue-100 text-blue-700 px-4 py-2 font-semibold hover:bg-blue-200 transition flex items-center"
+          onClick={() => window.location.reload()}
+        >
+          <FaSyncAlt className="mr-2" /> Aggiorna elenco
+        </button>
       </div>
+
+      {/* Lista attività */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredActivities.map(activity => (
+          <div
+            key={activity.id}
+            className="rounded-2xl bg-white hover:shadow-2xl shadow-md p-5 flex flex-col gap-2 border border-blue-100 transition-all duration-200 relative"
+            style={{ minHeight: 170 }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-blue-100 shadow-sm bg-blue-50 flex items-center justify-center">
+                <FaTasks className="text-blue-400 text-3xl" />
+              </div>
+              <div>
+                <div className="font-bold text-lg text-blue-800">{activity.title}</div>
+                <div className="text-gray-500 text-sm">
+                  <FaUser className="inline mr-1 text-blue-400" />
+                  {activity.user}
+                </div>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  <span
+                    className={`px-3 py-1 rounded-2xl text-xs font-semibold shadow ${statusColors[activity.status] || "bg-gray-200 text-gray-800"}`}
+                  >
+                    {activity.status}
+                  </span>
+                  <span
+                    className={`px-3 py-1 rounded-2xl text-xs font-semibold shadow ${typeColors[activity.type] || "bg-gray-200 text-gray-800"}`}
+                  >
+                    {activity.type}
+                  </span>
+                  {activity.dueDate && (
+                    <span className="px-3 py-1 rounded-2xl text-xs bg-blue-100 text-blue-700 font-semibold flex items-center gap-1">
+                      <FaClock className="inline" /> {activity.dueDate}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="mt-auto flex gap-2">
+              <button
+                className="px-4 py-2 rounded-xl bg-blue-50 text-blue-800 font-semibold shadow hover:bg-blue-200 transition"
+                onClick={() => setModalActivity(activity)}
+              >
+                Modifica
+              </button>
+              <button
+                className="px-4 py-2 rounded-xl bg-red-100 text-red-600 font-semibold shadow hover:bg-red-200 transition"
+                // onClick={() => handleDeleteActivity(activity.id)}
+              >
+                Elimina
+              </button>
+            </div>
+            {/* badge laterale */}
+            <span className="absolute top-3 right-3 text-xs bg-blue-200 text-blue-700 rounded-full px-3 py-1 shadow">
+              ID: {activity.id}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Modal gestione attività */}
+      {modalActivity && (
+        <ActivityModal activity={modalActivity} onClose={() => setModalActivity(null)} />
+      )}
     </div>
   );
 }
-
-const thStyle = {
-  padding: "10px 8px",
-  borderBottom: "2px solid #d2e3fc",
-  fontSize: 16
-};
-const tdStyle = {
-  padding: "10px 8px",
-  fontSize: 15,
-  borderBottom: "1px solid #edf2fa",
-  maxWidth: 210,
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis"
-};
-
-const inputStyle = {
-  padding: "6px 10px",
-  borderRadius: 6,
-  border: "1px solid #b2c8e6",
-  fontSize: 15
-};

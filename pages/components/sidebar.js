@@ -4,12 +4,14 @@
 import { useRouter } from "next/router";
 import {
   FaUsers, FaUserShield, FaProjectDiagram, FaFolderOpen,
-  FaCalendarAlt, FaTags, FaSignOutAlt, FaBars, FaTasks
+  FaCalendarAlt, FaTags, FaSignOutAlt, FaBars, FaTasks, FaBell // <-- aggiunto FaBell
 } from "react-icons/fa";
 import { useState, useEffect } from "react";
+import { useNotifications } from "./NotificationsContext"; // <-- aggiunto
 
 const linkData = [
   { href: "/", label: "Dashboard", icon: <FaUserShield /> },
+  { href: "/notifications", label: "Notifiche", icon: <FaBell />, isNotification: true }, // <-- aggiunta voce Notifiche
   { href: "/users", label: "Utenti", icon: <FaUsers /> },
   { href: "/teams", label: "Team", icon: <FaProjectDiagram /> },
   { href: "/files", label: "Files", icon: <FaFolderOpen /> },
@@ -27,6 +29,9 @@ export default function Sidebar({
 
   // Responsive burger icon per mobile
   const [showBurger, setShowBurger] = useState(false);
+
+  // Hook notifiche - aggiunto
+  const { unreadCount } = useNotifications();
 
   useEffect(() => {
     const handleResize = () => setShowBurger(window.innerWidth < 700);
@@ -80,7 +85,6 @@ export default function Sidebar({
               <div style={{ fontSize: 11, color: "#dedede", fontWeight: 500, marginBottom: 2, marginTop: 2 }}>
                 Powered by Giancarlo Pallotti
               </div>
-             
             </>
           )}
         </div>
@@ -130,6 +134,7 @@ export default function Sidebar({
             >
               {link.icon}
               {!collapsed && link.label}
+              {/* Badge activities già presente */}
               {link.notify && activitiesNotifications > 0 && (
                 <span style={{
                   background: "#f43",
@@ -149,6 +154,28 @@ export default function Sidebar({
                   boxShadow: "0 1px 4px #9008"
                 }}>
                   {activitiesNotifications}
+                </span>
+              )}
+              {/* Badge notifiche SOLO per Notifiche */}
+              {link.isNotification && unreadCount > 0 && (
+                <span style={{
+                  background: "#e53935",
+                  color: "#fff",
+                  borderRadius: "50%",
+                  fontSize: 10,
+                  minWidth: 18,
+                  height: 18,
+                  padding: "0 2px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 700,
+                  position: "absolute",
+                  right: collapsed ? 4 : 9,
+                  top: 4,
+                  boxShadow: "0 1px 4px #9008"
+                }}>
+                  {unreadCount}
                 </span>
               )}
             </a>
