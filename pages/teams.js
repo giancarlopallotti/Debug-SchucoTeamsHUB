@@ -1,53 +1,46 @@
 // Percorso: /pages/teams.js
-// Scopo: Layout team stile Microsoft Windows Fluent - colorato e professionale, con refresh automatico post-modal
-// Autore: ChatGPT
-// Ultima modifica: 26/05/2025
-
 import { useEffect, useState } from "react";
 import { FaUsers, FaSearch, FaPlus, FaUserTie, FaSyncAlt } from "react-icons/fa";
 import TeamModal from "./components/TeamModal"; // Aggiorna percorso se necessario
-
-const teamTypeColors = {
-  "Tecnico": "bg-blue-500 text-white",
-  "Commerciale": "bg-green-500 text-white",
-  "Gestione": "bg-purple-500 text-white",
-  "Altro": "bg-gray-400 text-black"
-};
 
 export default function TeamsPage() {
   const [teams, setTeams] = useState([]);
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
-  // const [typeFilter, setTypeFilter] = useState(""); // RIMOSSO: non usato ora
   const [modalTeam, setModalTeam] = useState(null);
 
-  // Funzione per caricare teams
+  // Carica teams
   const fetchTeams = () => {
     fetch("/api/teams")
       .then(res => res.json())
       .then(data => setTeams(Array.isArray(data) ? data : []));
   };
 
-  // Funzione per caricare utenti (per avatar, manager, membri)
+  // Carica utenti
   const fetchUsers = () => {
     fetch("/api/users")
       .then(res => res.json())
       .then(data => setUsers(Array.isArray(data) ? data : []));
   };
 
-  // Carica teams e users all'avvio
   useEffect(() => {
     fetchTeams();
     fetchUsers();
   }, []);
 
-  // Filtro search/tag (puoi aggiungere filtro per tag qui se vuoi)
   const filteredTeams = teams.filter(t =>
     (!search || t.name.toLowerCase().includes(search.toLowerCase()))
   );
 
-  // Recupera utente (manager o membro) per ID
   const getUserById = (id) => users.find(u => String(u.id) === String(id));
+
+  // --- ELIMINA TEAM ---
+  const handleDeleteTeam = async (id) => {
+    if (!window.confirm("Sei sicuro di voler eliminare questo team?")) return;
+    const res = await fetch(`/api/teams/${id}`, { method: "DELETE" });
+    if (res.ok) fetchTeams();
+    else alert("Errore durante l'eliminazione!");
+  };
 
   return (
     <div className="min-h-screen bg-[#f3f6fd] px-0 md:px-8 py-4">
@@ -62,17 +55,6 @@ export default function TeamsPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-          {/* <select
-            className="rounded-xl px-3 py-2 ml-2 border border-blue-200 bg-white text-blue-700"
-            value={typeFilter}
-            onChange={e => setTypeFilter(e.target.value)}
-          >
-            <option value="">Tutti i tipi</option>
-            <option value="Tecnico">Tecnico</option>
-            <option value="Commerciale">Commerciale</option>
-            <option value="Gestione">Gestione</option>
-            <option value="Altro">Altro</option>
-          </select> */}
           <button
             className="ml-2 rounded-xl bg-blue-600 text-white px-4 py-2 font-semibold shadow hover:bg-blue-700 transition"
             onClick={() => setModalTeam({})}
@@ -94,11 +76,9 @@ export default function TeamsPage() {
       {/* Lista team */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredTeams.map(team => {
-          // Membri (array di id stringa o array JS)
           const membersArr = typeof team.members === "string"
             ? team.members.split(",").map(x => x.trim()).filter(Boolean)
             : Array.isArray(team.members) ? team.members : [];
-          // Manager
           const managerUser = getUserById(team.manager);
 
           return (
@@ -118,7 +98,6 @@ export default function TeamsPage() {
                 <div>
                   <div className="font-bold text-lg text-blue-800">{team.name}</div>
                   <div className="text-gray-500 text-sm">ID: {team.id}</div>
-                  {/* TAGS */}
                   <div className="mt-1 flex flex-wrap gap-2">
                     {team.tags && team.tags.split(",").map(tag =>
                       <span key={tag} className="bg-green-100 text-green-800 border border-green-200 px-2 py-0.5 rounded-full text-xs font-semibold">#{tag.trim()}</span>
@@ -145,16 +124,23 @@ export default function TeamsPage() {
                   })}
                 </div>
               </div>
+              {/* --- Bottoni Visualizza, Modifica, Elimina --- */}
               <div className="mt-auto flex gap-2">
                 <button
+                  className="px-4 py-2 rounded-xl bg-blue-100 text-blue-900 font-semibold shadow hover:bg-blue-200 transition"
+                  onClick={() => setModalTeam({ ...team, viewOnly: true })}
+                >
+                  Visualizza
+                </button>
+                <button
                   className="px-4 py-2 rounded-xl bg-blue-50 text-blue-800 font-semibold shadow hover:bg-blue-200 transition"
-                  onClick={() => setModalTeam({ ...team })}
+                  onClick={() => setModalTeam({ ...team, viewOnly: false })}
                 >
                   Modifica
                 </button>
                 <button
                   className="px-4 py-2 rounded-xl bg-red-100 text-red-600 font-semibold shadow hover:bg-red-200 transition"
-                  // onClick={() => handleDeleteTeam(team.id)}
+                  onClick={() => handleDeleteTeam(team.id)}
                 >
                   Elimina
                 </button>
@@ -173,12 +159,10 @@ export default function TeamsPage() {
         <TeamModal
           team={modalTeam}
           users={users}
+          viewOnly={!!modalTeam.viewOnly}
           onClose={(updated) => {
             setModalTeam(null);
-            if (updated) {
-              fetchTeams();
-              // fetchUsers(); // opzionale, solo se cambi anche membri
-            }
+            if (updated) fetchTeams();
           }}
         />
       )}
