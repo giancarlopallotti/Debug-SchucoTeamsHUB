@@ -1,38 +1,46 @@
 // Percorso: /pages/api/projects/index.js
-const db = require("../../../db/db.js");
+// Scopo: API per lettura progetti con team e clienti associati
+// Autore: ChatGPT
+// Ultima modifica: 29/05/2025
 
-export default function handler(req, res) {
-  if (req.method === "GET") {
-    // Recupera progetti + clienti associati
-    const projects = db.prepare("SELECT * FROM projects ORDER BY created_at DESC").all();
-    for (let project of projects) {
-      const clients = db.prepare(
-        `SELECT c.id, c.name, c.surname, c.company
-         FROM clients c
-         INNER JOIN project_clients pc ON pc.client_id = c.id
-         WHERE pc.project_id = ?`
-      ).all(project.id);
-      project.clients = clients;
-    }
-    res.status(200).json(projects);
+import db from "../../../db/db";
 
-  } else if (req.method === "POST") {
-    const { title, description, status, priority, deadline, note, clients } = req.body;
-    if (!title) return res.status(400).json({ error: "Titolo obbligatorio" });
-    const result = db.prepare(
-      `INSERT INTO projects (title, description, status, priority, deadline, note) VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(title, description, status, priority, deadline, note);
-    const projectId = result.lastInsertRowid;
+export default async function handler(req, res) {
+  if (req.method !== "GET") {
+    return res.status(405).json({ error: "Metodo non consentito" });
+  }
 
-    // Gestione clienti associati
-    if (Array.isArray(clients)) {
-      for (let clientId of clients) {
-        db.prepare("INSERT INTO project_clients (project_id, client_id) VALUES (?, ?)").run(projectId, clientId);
+  try {
+    // Recupera tutti i progetti
+    const projects = db.prepare("SELECT * FROM projects").all();
+
+    // Recupera tutti i clienti (una sola volta)
+    const allClients = db.prepare("SELECT id, name FROM clients").all();
+
+    const enrichedProjects = projects.map(p => {
+      let clientIds = [];
+
+      try {
+        if (p.clients && typeof p.clients === "string") {
+          clientIds = p.clients.split(",").map(id => id.trim()).filter(Boolean);
+        }
+      } catch (err) {
+        clientIds = [];
       }
-    }
-    res.status(201).json({ success: true });
-  } else {
-    res.setHeader("Allow", ["GET", "POST"]);
-    res.status(405).end("Metodo non permesso");
+
+      const clientObjs = clientIds.map(cid =>
+        allClients.find(c => String(c.id) === String(cid))
+      ).filter(Boolean);
+
+      return {
+        ...p,
+        clients: clientObjs
+      };
+    });
+
+    return res.status(200).json(enrichedProjects);
+  } catch (e) {
+    console.error("Errore API progetti:", e);
+    return res.status(500).json({ error: "Errore interno" });
   }
 }

@@ -1,48 +1,39 @@
+// ==================================================================
 // Percorso: /pages/api/auth/login.js
-// Scopo: Login sicuro solo con JWT (cookie HttpOnly 'token')
+// Scopo: Login utente, setta cookie token + user_id (compatibile db.js CommonJS)
 // Autore: ChatGPT
-// Ultima modifica: 25/05/2025 – 12:10:00
-// Note: Solo JWT, nessun user_id nel cookie
+// Ultima modifica: 28/05/2025
+// ==================================================================
 
-import { serialize } from "cookie";
-import jwt from "jsonwebtoken";
-import db from "../../../db/db.js";
-
-const JWT_SECRET = process.env.JWT_SECRET || "my-strong-secret-jwt-key";
+import { signToken } from '../../../utils/auth';
+const db = require('../../../db/db.js'); // <-- usa require (CommonJS)
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST")
+    return res.status(405).json({ error: "Metodo non consentito" });
+
+  const { email, password } = req.body;
+
+  // Ricerca utente in db
+  let user;
+  try {
+    user = db.prepare(`SELECT * FROM users WHERE email = ?`).get(email);
+  } catch (err) {
+    console.error("Errore DB:", err);
+    return res.status(500).json({ error: "Errore database" });
   }
 
-  const { email, password } = req.body || {};
-  if (!email || !password) {
-    return res.status(400).json({ error: "Email e password obbligatori" });
-  }
+  if (!user || user.password !== password)
+    return res.status(401).json({ error: "Credenziali errate" });
 
-  // Cerca l'utente in db
-  const user = db.prepare("SELECT * FROM users WHERE email = ? AND password = ?").get(email, password);
+  // Genera JWT
+  const token = signToken({ id: user.id, name: user.name, role: user.role });
 
-  if (!user) {
-    return res.status(401).json({ error: "Credenziali non valide" });
-  }
-
-  // Genera JWT token con i dati essenziali
-  const token = jwt.sign(
-    { user_id: user.id, email: user.email, role: user.role },
-    JWT_SECRET,
-    { expiresIn: "2h" }
-  );
-
-  // Setta solo il cookie 'token'
+  // Setta cookie token + user_id
   res.setHeader("Set-Cookie", [
-    serialize("token", token, {
-      path: "/",
-      httpOnly: true,
-      sameSite: "strict",
-      maxAge: 60 * 60 * 2 // 2h
-    }),
+    `token=${token}; Path=/; HttpOnly; SameSite=Lax;`,
+    `user_id=${user.id}; Path=/; SameSite=Lax;`
   ]);
 
-  res.status(200).json({ ok: true, id: user.id, email: user.email, name: user.name, role: user.role });
+  res.status(200).json({ success: true });
 }

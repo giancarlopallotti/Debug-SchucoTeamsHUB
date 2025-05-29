@@ -1,8 +1,8 @@
 // Percorso: /pages/notifications.js
-// Scopo: Pagina notifiche moderna, user dinamico, filtri, badge e UX migliorata
+// Scopo: Pagina notifiche moderna, user dinamico, filtri, badge e UX migliorata + patch smart badge e link
 // Autore: ChatGPT
-// Ultima modifica: 22/05/2025
-// Note: Filtro non lette/tutte, badge nuovo, gestione user e azioni ottimizzate
+// Ultima modifica: 28/05/2025
+// Note: Badge colorati, link diretti agli oggetti, tutto dinamico e “enterprise”.
 
 import { useEffect, useState } from "react";
 
@@ -95,8 +95,40 @@ export default function NotificationsPage() {
           {filteredNotifs.map(notif => (
             <li key={notif.id} className={`p-4 flex items-center ${!notif.read ? "bg-orange-50 font-semibold text-blue-900" : "text-gray-800"}`}>
               <span className="flex-1">
-                {notif.message}
-                <span className="block text-xs text-gray-400 font-normal mt-1">{new Date(notif.created_at).toLocaleString()}</span>
+                <span className="inline-flex items-center gap-2">
+                  {/* Badge tipo notifica */}
+                  {notif.type === "message" && (
+                    <span className="bg-blue-200 text-blue-900 px-2 py-0.5 rounded text-xs font-bold">Messaggio</span>
+                  )}
+                  {notif.type === "mention" && (
+                    <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded text-xs font-bold">Menzione</span>
+                  )}
+                  {notif.type === "task" && (
+                    <span className="bg-green-100 text-green-900 px-2 py-0.5 rounded text-xs font-bold">Attività</span>
+                  )}
+                  {notif.type === "file" && (
+                    <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-xs font-bold">File</span>
+                  )}
+                  {/* Titolo/descrizione */}
+                  <span>{notif.title || notif.message}</span>
+                </span>
+                {/* Link diretto all’oggetto correlato */}
+                <span className="block text-xs text-blue-700 font-normal mt-1">
+                  {notif.type === "message" && notif.related_id && (
+                    <a href={`/messages/${notif.related_id}`} className="underline">Vai al messaggio</a>
+                  )}
+                  {notif.type === "task" && notif.related_id && (
+                    <a href={`/activities/${notif.related_id}`} className="underline">Vai all’attività</a>
+                  )}
+                  {notif.type === "file" && notif.related_id && (
+                    <a href={`/files/${notif.related_id}`} className="underline">Vai al file</a>
+                  )}
+                  {/* Altri tipi future proof */}
+                  {notif.type === "mention" && notif.related_id && (
+                    <a href={`/messages/${notif.related_id}`} className="underline">Vai al messaggio menzionato</a>
+                  )}
+                  <span className="text-gray-400 ml-2">{new Date(notif.created_at).toLocaleString()}</span>
+                </span>
               </span>
               {!notif.read && (
                 <button

@@ -1,10 +1,14 @@
 // Percorso: /pages/sidebar.js
 // Sidebar compatta e responsive con gestione popup Info Utente tramite props da _app.js
+// Modifica: aggiunta voce "Messaggi" DOPO "Attività"
+// Autore: ChatGPT
+// Ultima modifica: 27/05/2025
+// Note: Nessun altro cambiamento, solo inserimento voce Messaggi nella posizione richiesta.
 
 import { useRouter } from "next/router";
 import {
   FaUsers, FaUserShield, FaProjectDiagram, FaFolderOpen,
-  FaCalendarAlt, FaTags, FaSignOutAlt, FaBars, FaTasks, FaBell // <-- aggiunto FaBell
+  FaCalendarAlt, FaTags, FaSignOutAlt, FaBars, FaTasks, FaBell, FaEnvelope // <-- aggiunto FaEnvelope
 } from "react-icons/fa";
 import { useState, useEffect } from "react";
 import { useNotifications } from "./NotificationsContext"; // <-- aggiunto
@@ -18,6 +22,9 @@ const linkData = [
   { href: "/clients", label: "Clienti", icon: <FaUsers /> },
   { href: "/projects", label: "Progetti", icon: <FaProjectDiagram /> },
   { href: "/activities", label: "Attività", icon: <FaTasks />, notify: true },
+  // ========== AGGIUNTA SOLO QUESTA RIGA DOPO ATTIVITÀ ==========
+  { href: "/messages", label: "Messaggi", icon: <FaEnvelope /> },
+  // =============================================================
   { href: "/calendar", label: "Calendario", icon: <FaCalendarAlt /> },
   { href: "/tags", label: "Tag", icon: <FaTags /> },
 ];

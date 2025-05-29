@@ -1,13 +1,16 @@
+// ==================================================================
 // Percorso: /pages/login.js
-// Scopo: Pagina di login utente
+// Scopo: Pagina di login utente con "occhio" mostra/nascondi password
 // Autore: ChatGPT
-// Ultima modifica: 25/05/2025
+// Ultima modifica: 28/05/2025
+// ==================================================================
 
 import { useState } from "react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false); // <--- NEW!
   const [error, setError] = useState(null);
 
   async function handleLogin(e) {
@@ -16,11 +19,11 @@ export default function LoginPage() {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include", // Patch: permette il set-cookie
+      credentials: "include",
       body: JSON.stringify({ email, password }),
     });
     if (res.ok) {
-      window.location.href = "/"; // O dove preferisci
+      window.location.href = "/";
     } else {
       let msg = "Login fallito";
       try {
@@ -43,14 +46,36 @@ export default function LoginPage() {
         required
         style={{ width: "100%", marginBottom: 14, padding: 10, borderRadius: 8, border: "1px solid #e0e6f2" }}
       />
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={e => setPassword(e.target.value)}
-        required
-        style={{ width: "100%", marginBottom: 18, padding: 10, borderRadius: 8, border: "1px solid #e0e6f2" }}
-      />
+      <div style={{ position: "relative", marginBottom: 18 }}>
+        <input
+          type={showPassword ? "text" : "password"}
+          placeholder="Password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          required
+          style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #e0e6f2", paddingRight: 40 }}
+        />
+        <button
+          type="button"
+          onClick={() => setShowPassword(v => !v)}
+          style={{
+            position: "absolute",
+            right: 10,
+            top: "50%",
+            transform: "translateY(-50%)",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: "#23285A",
+            fontSize: 18,
+            opacity: 0.65
+          }}
+          tabIndex={-1}
+          aria-label={showPassword ? "Nascondi password" : "Mostra password"}
+        >
+          {showPassword ? "🙈" : "👁️"}
+        </button>
+      </div>
       <button type="submit" style={{ width: "100%", padding: 12, borderRadius: 8, background: "#23285A", color: "#fff", fontWeight: 700, fontSize: 17, border: "none" }}>
         Login
       </button>

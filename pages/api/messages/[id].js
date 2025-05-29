@@ -1,71 +1,56 @@
+// ==================================================================
 // Percorso: /pages/api/messages/[id].js
-// Scopo: API dettaglio messaggio con recipients, allegati, audit log
+// Scopo: Dettaglio, modifica e azioni rapide su singolo messaggio
 // Autore: ChatGPT
-// Ultima modifica: 22/05/2025
+// Ultima modifica: 28/05/2025
+// ==================================================================
 
-import db from "../../../db/db.js";
-import { getSessionUser } from "../../../utils/auth";
+import db from '../../../db/db.js';
+import { parseJSON } from '../../../utils/helpers';
 
 export default async function handler(req, res) {
-  const user = await getSessionUser(req, res);
-  if (!user) return res.status(401).json({ error: "Non autenticato" });
+  // Prende user_id dal cookie
+  const user_id = req.cookies?.user_id;
+  if (!user_id) return res.status(401).json({ error: 'Unauthorized: user_id missing' });
+  const user = { id: Number(user_id) };
 
   const { id } = req.query;
-  // Recupera messaggio e verifica permessi (può vedere se è mittente, destinatario o in CC)
-  const msg = db.prepare(`
-    SELECT m.*, 
-      (SELECT name FROM users WHERE id = m.sender_id) AS sender_name,
-      (SELECT surname FROM users WHERE id = m.sender_id) AS sender_surname,
-      EXISTS (SELECT 1 FROM attachments WHERE attachments.message_id = m.id) AS hasAttachment
-    FROM messages m
-    WHERE m.id = ?
-  `).get(id);
+  if (!id) return res.status(400).json({ error: "id messaggio richiesto" });
 
-  if (!msg) return res.status(404).json({ error: "Messaggio non trovato" });
-
-  // Verifica permesso lettura (mittente o destinatario o CC)
-  const isRecipient = db.prepare(`
-    SELECT 1 FROM message_recipients 
-    WHERE message_id = ? AND recipient_id = ?
-  `).get(id, user.id) || (msg.sender_id === user.id);
-  if (!isRecipient) return res.status(403).json({ error: "Accesso negato" });
-
-  // Prendi tutti i destinatari (TO/CC)
-  const recipients = db.prepare(`
-    SELECT r.type, u.id, u.name, u.surname, u.email
-    FROM message_recipients r
-    LEFT JOIN users u ON u.id = r.recipient_id
-    WHERE r.message_id = ?
-    ORDER BY r.type, u.name
-  `).all(id);
-
-  // Allegati (se presenti)
-  let attachments = [];
-  if (msg.hasAttachment) {
-    attachments = db.prepare(`
-      SELECT id, file_name, file_path, uploaded_at
-      FROM attachments
-      WHERE message_id = ?
-    `).all(id);
+  if (req.method === "GET") {
+    // Restituisce dettagli messaggio
+    const message = await db.get(`SELECT * FROM messages WHERE id = ?`, [id]);
+    res.status(200).json({ message });
+    return;
   }
 
-  // Audit log (solo per admin/supervisor)
-  let audit = [];
-  if (user.role === "supervisor" || user.role === "admin") {
-    audit = db.prepare(`
-      SELECT l.*, u.name, u.surname 
-      FROM message_logs l
-      LEFT JOIN users u ON u.id = l.user_id
-      WHERE l.message_id = ?
-      ORDER BY l.created_at DESC
-      LIMIT 30
-    `).all(id);
+  if (req.method === "PATCH") {
+    // Aggiorna messaggio: solo campi consentiti (es: modifica testo/tag/allegati)
+    const { body, subject, tags, attachment_urls } = req.body;
+    let updates = [];
+    let params = [];
+
+    if (body !== undefined) { updates.push("body = ?"); params.push(body); }
+    if (subject !== undefined) { updates.push("subject = ?"); params.push(subject); }
+    if (tags !== undefined) { updates.push("tags = ?"); params.push(JSON.stringify(tags)); }
+    if (attachment_urls !== undefined) { updates.push("attachment_urls = ?"); params.push(JSON.stringify(attachment_urls)); }
+
+    if (updates.length > 0) {
+      params.push(id);
+      await db.run(`UPDATE messages SET ${updates.join(", ")} WHERE id = ?`, params);
+    }
+
+    res.status(200).json({ success: true });
+    return;
   }
 
-  res.json({
-    ...msg,
-    recipients,
-    attachments,
-    audit
-  });
+  if (req.method === "DELETE") {
+    // Soft delete: marca il messaggio come cancellato
+    await db.run(`UPDATE messages SET status = ?, deleted_at = CURRENT_TIMESTAMP WHERE id = ?`, ["deleted", id]);
+    res.status(200).json({ success: true });
+    return;
+  }
+
+  res.setHeader('Allow', ['GET', 'PATCH', 'DELETE']);
+  res.status(405).end(`Metodo ${req.method} non consentito`);
 }

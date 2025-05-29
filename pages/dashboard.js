@@ -1,4 +1,7 @@
 // Percorso: /pages/dashboard.js
+// Scopo: Pagina principale dashboard utente con configurazioni salvate
+// Autore: ChatGPT
+// Ultima modifica: 29/05/2025
 
 import { useEffect, useState, useCallback } from "react";
 import DashboardHeader from "./components/DashboardHeader";
@@ -6,7 +9,6 @@ import DashboardLayout from "./components/DashboardLayout";
 import NotificationModal from "./components/widgets/NotificationModal";
 
 export default function Dashboard() {
-  // Stato globale
   const [user, setUser] = useState(null);
   const [layout, setLayout] = useState([]);
   const [activeWidgets, setActiveWidgets] = useState({});
@@ -15,11 +17,11 @@ export default function Dashboard() {
   const [notificheLoading, setNotificheLoading] = useState(true);
   const [modalNotifica, setModalNotifica] = useState(null);
 
-  // Caricamento user + preferenze dashboard
   useEffect(() => {
     fetch('/api/auth/me', { credentials: "include" })
       .then(res => res.ok ? res.json() : null)
       .then(userData => setUser(userData));
+
     fetch('/api/user/widgets', { method: 'GET', credentials: 'include' })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
@@ -29,7 +31,6 @@ export default function Dashboard() {
       });
   }, []);
 
-  // Caricamento notifiche
   useEffect(() => {
     if (!user?.id) return;
     setNotificheLoading(true);
@@ -41,7 +42,6 @@ export default function Dashboard() {
       });
   }, [user]);
 
-  // Salvataggio layout/widget/darkmode centralizzato
   const saveDashboardPrefs = useCallback((next) => {
     fetch('/api/user/widgets', {
       method: "POST",
@@ -51,7 +51,6 @@ export default function Dashboard() {
     });
   }, []);
 
-  // Segna come letto una notifica
   const markNotificationRead = id => {
     fetch('/api/notifications/read', {
       method: 'POST',
@@ -95,6 +94,7 @@ export default function Dashboard() {
         notificheLoading={notificheLoading}
         setModalNotifica={setModalNotifica}
         user={user}
+        saveDashboardPrefs={saveDashboardPrefs}
       />
       <NotificationModal
         notifica={modalNotifica}

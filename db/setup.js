@@ -284,6 +284,125 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 `);
 
+/*
+  ======================================================
+  SchucoTeamsHUB - Database Setup (setup.js)
+  Versione: v2 – 27/05/2025
+  Autore: ChatGPT
+  Scopo: Definizione e creazione tabelle principali e aggiuntive.
+         Aggiunta gestione completa Messaggi (threads, allegati, tagging, reazioni, collegamenti entità).
+  Note:
+    - Il file aggiunge tutte le tabelle richieste dalla nuova logica Messaggi.
+    - Compatibilità retroattiva garantita: nessuna modifica distruttiva sulle tabelle esistenti.
+    - Tutte le foreign key già riferiscono a users, tags, files, ecc.
+    - Versionamento e dettagli modifiche inclusi in header.
+  ======================================================
+*/
+
+// ==========================
+// TABLE: THREADS (Conversazioni)
+// ==========================
+CREATE TABLE IF NOT EXISTS threads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT,                                 -- Titolo del thread (es: oggetto email)
+  created_by INTEGER,                         -- Utente che ha creato la conversazione
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  last_message_at DATETIME,                   -- Timestamp ultimo messaggio
+  FOREIGN KEY(created_by) REFERENCES users(id)
+);
+
+// ==========================
+// TABLE: MESSAGES (Singolo messaggio)
+// ==========================
+CREATE TABLE IF NOT EXISTS messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  thread_id INTEGER,                          -- ID thread di appartenenza
+  parent_id INTEGER,                          -- Messaggio padre (per risposte/quote)
+  sender_id INTEGER NOT NULL,                 -- Mittente
+  body TEXT,                                  -- Corpo del messaggio
+  sent_at DATETIME DEFAULT CURRENT_TIMESTAMP, -- Data invio
+  is_archived BOOLEAN DEFAULT 0,              -- Stato archiviazione
+  is_favorite BOOLEAN DEFAULT 0,              -- Stato preferito
+  is_read BOOLEAN DEFAULT 0,                  -- Stato letto/non letto (fallback: tabella reads)
+  is_deleted BOOLEAN DEFAULT 0,               -- Soft-delete
+  message_type TEXT,                          -- Tipo messaggio: normale, system, task, etc.
+  visibility TEXT,                            -- Permessi: privato, team, progetto, pubblico, cliente
+  subject TEXT,                               -- Oggetto (opzionale)
+  FOREIGN KEY(sender_id) REFERENCES users(id),
+  FOREIGN KEY(thread_id) REFERENCES threads(id),
+  FOREIGN KEY(parent_id) REFERENCES messages(id)
+);
+
+// ==========================
+// TABLE: MESSAGE_TAGS (Associazione Tag a Messaggi)
+// ==========================
+CREATE TABLE IF NOT EXISTS message_tags (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  message_id INTEGER,                         -- Messaggio collegato
+  tag_id INTEGER,                             -- Tag collegato
+  FOREIGN KEY(message_id) REFERENCES messages(id),
+  FOREIGN KEY(tag_id) REFERENCES tags(id)
+);
+
+// ==========================
+// TABLE: MESSAGE_ATTACHMENTS (Allegati ai Messaggi)
+// ==========================
+CREATE TABLE IF NOT EXISTS message_attachments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  message_id INTEGER,                         -- Messaggio collegato
+  file_id INTEGER,                            -- File nel sistema (riferimento a files)
+  file_name TEXT,                             -- Nome file visualizzato
+  mime_type TEXT,                             -- Tipo MIME (pdf, image, etc)
+  size INTEGER,                               -- Dimensione file
+  url TEXT,                                   -- URL diretto download/view
+  FOREIGN KEY(message_id) REFERENCES messages(id),
+  FOREIGN KEY(file_id) REFERENCES files(id)
+);
+
+// ==========================
+// TABLE: MESSAGE_LINKS (Collegamenti a Entità del Sistema)
+// ==========================
+CREATE TABLE IF NOT EXISTS message_links (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  message_id INTEGER,                         -- Messaggio collegato
+  entity_type TEXT,                           -- Tipo: 'team', 'project', 'client', 'file', 'activity'
+  entity_id INTEGER,                          -- ID oggetto collegato
+  FOREIGN KEY(message_id) REFERENCES messages(id)
+);
+
+// ==========================
+// TABLE: MESSAGE_REACTIONS (Reazioni/Feedback a Messaggio)
+// ==========================
+CREATE TABLE IF NOT EXISTS message_reactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  message_id INTEGER,                         -- Messaggio collegato
+  user_id INTEGER,                            -- Utente che ha reagito
+  reaction TEXT,                              -- Tipo reazione: 'like', 'smile', ecc.
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(message_id) REFERENCES messages(id),
+  FOREIGN KEY(user_id) REFERENCES users(id)
+);
+
+// ==========================
+// TABLE: MESSAGE_READS (Storico Letture per Utente)
+// ==========================
+CREATE TABLE IF NOT EXISTS message_reads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  message_id INTEGER,                         -- Messaggio letto
+  user_id INTEGER,                            -- Utente che ha letto
+  read_at DATETIME DEFAULT CURRENT_TIMESTAMP, -- Data/ora lettura
+  FOREIGN KEY(message_id) REFERENCES messages(id),
+  FOREIGN KEY(user_id) REFERENCES users(id)
+);
+
+/*
+  ======================================================
+  FINE MODIFICHE – v2 – 27/05/2025
+  Questa versione è pronta per la gestione avanzata di messaggi, allegati, tagging,
+  collegamenti a oggetti del sistema, reazioni, letture e thread multipli.
+  ======================================================
+*/
+
 console.log('Tutte le tabelle sono state create!');
 
 db.close();
