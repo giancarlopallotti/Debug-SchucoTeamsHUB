@@ -1,9 +1,9 @@
-// Percorso: /pages/components/FileDetails.js v5 – 08/06/2025
+// Percorso: /pages/components/FileDetails.js v6 – 08/06/2025
 import { useEffect, useState } from "react";
 import axios from "axios";
 import FileEditModal from "./FileEditModal";
 
-// Badge stile
+// Badge style + tooltip via title
 const badgeStyle = (bg, color = "#222") => ({
   background: bg,
   color,
@@ -17,11 +17,12 @@ const badgeStyle = (bg, color = "#222") => ({
   minWidth: 54,
   boxShadow: "0 1px 3px #ececec",
   transition: "0.2s",
-  cursor: "pointer"
+  cursor: "pointer",
+  position: "relative"
 });
 const blockStyle = { marginBottom: 22 };
 
-// Preview helpers
+// Helpers preview
 function getFileExtension(name) { return name?.split(".").pop()?.toLowerCase() || ""; }
 function isImage(ext) { return ["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(ext); }
 function isPDF(ext) { return ext === "pdf"; }
@@ -79,7 +80,7 @@ export default function FileDetails({ file, onFileMoved, onFileDeleted }) {
     if (onFileDeleted) onFileDeleted();
   };
 
-  // STUB per “Sposta” e “Versioni”
+  // Stub azioni future
   const handleMove = () => alert("Funzione 'Sposta file' in sviluppo.");
   const handleVersions = () => setShowVersions(true);
 
@@ -98,10 +99,10 @@ export default function FileDetails({ file, onFileMoved, onFileDeleted }) {
     preview = <div style={{ color: "#2450a5", margin: "0 0 18px" }}>📝 File Word non visualizzabile in preview.</div>;
   }
 
-  // Tooltip helpers (mostra info extra, esempio: nome utente creatore/team)
+  // Tooltip helpers (esempio info dettagliata badge)
   const tooltipFor = (obj, tipo) => {
     if (!obj) return "";
-    if (tipo === "tag") return `TAG: #${obj.name}`;
+    if (tipo === "tag") return `#${obj.name}\nCreato il: ${obj.created_at || "-"}`;
     if (tipo === "team") return `Team: ${obj.name}\nCreato da: ${obj.created_by_name || "?"}`;
     if (tipo === "project") return `Progetto: ${obj.title}\nCreato il: ${obj.created_at?.slice(0,10) || "-"}`;
     if (tipo === "client") return `Azienda: ${obj.company}`;
@@ -109,7 +110,7 @@ export default function FileDetails({ file, onFileMoved, onFileDeleted }) {
     return "";
   };
 
-  // Badge groups
+  // Badge color mapping
   const colorMap = {
     tags:     { bg: "#e3e6fa", txt: "#263b8a" },
     teams:    { bg: "#d8f2e0", txt: "#137956" },
@@ -138,7 +139,7 @@ export default function FileDetails({ file, onFileMoved, onFileDeleted }) {
       </div>
     ) : null;
 
-  // Timeline log verticale
+  // Timeline log verticale moderna, colorata, animata
   const renderLogs = logs => (
     <div style={{
       background: "#f8f8fc",
@@ -149,28 +150,41 @@ export default function FileDetails({ file, onFileMoved, onFileDeleted }) {
       boxShadow: "0 2px 8px #ececf5"
     }}>
       <b style={{ color: "#5a54c7" }}>Cronologia attività file</b>
-      <div style={{ marginLeft: 14, borderLeft: "3px solid #c5c7e7", paddingLeft: 16, marginTop: 10 }}>
+      <div style={{ marginLeft: 14, borderLeft: "3px solid #c5c7e7", paddingLeft: 16, marginTop: 10, position: "relative" }}>
         {logs.length === 0 && <div style={{ color: "#aaa", marginTop: 8 }}>Nessuna attività registrata.</div>}
         {logs.map((log, i) =>
-          <div key={i} style={{ display: "flex", alignItems: "flex-start", marginBottom: 12, position: "relative" }}>
+          <div key={i} style={{
+            display: "flex", alignItems: "flex-start", marginBottom: 14, position: "relative",
+            opacity: 0, animation: `fadeinlog 0.9s cubic-bezier(.2,.6,.7,1) forwards`, animationDelay: `${i * 70}ms`
+          }}>
             <div style={{
-              width: 24, height: 24, borderRadius: 18, background: "#fff", color: "#5a54c7",
+              width: 26, height: 26, borderRadius: 16, background: "#fff", color: "#5a54c7",
               display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 1px 4px #e3eafc", position: "absolute", left: -32, top: 0
+              boxShadow: "0 1px 5px #e3eafc", position: "absolute", left: -33, top: 2, fontSize: 18,
+              border: `2.2px solid ${log.action === "upload" ? "#60a5fa" : log.action === "download" ? "#22d3ee" : log.action === "update" ? "#fbbf24" : log.action === "delete" ? "#f87171" : "#c5c7e7"}`
             }}>
               {log.action === "upload" && "⬆️"}
               {log.action === "download" && "⬇️"}
               {log.action === "update" && "✏️"}
               {log.action === "delete" && "🗑️"}
             </div>
-            <div style={{ fontSize: 15, marginLeft: 0, color: "#444" }}>
-              <span style={{ fontWeight: 600 }}>{log.datetime?.slice(0, 16).replace("T", " ")}</span>
-              {log.user ? <span style={{ marginLeft: 6, color: "#4a469e" }}>{log.user}</span> : ""}
-              <span style={{ marginLeft: 10, color: "#666" }}>{log.description || log.action}</span>
+            <div style={{ fontSize: 15, marginLeft: 0, color: "#444", minHeight: 28, display: "flex", flexDirection: "column" }}>
+              <span>
+                <span style={{ fontWeight: 600 }}>{log.datetime?.slice(0, 16).replace("T", " ")}</span>
+                {log.user ? <span style={{ marginLeft: 6, color: "#4a469e" }}>{log.user}</span> : ""}
+                <span style={{ marginLeft: 10, color: "#666" }}>{log.description || log.action}</span>
+              </span>
+              {log.note && <span style={{ color: "#8b889a", fontSize: 13, marginLeft: 2 }}>{log.note}</span>}
             </div>
           </div>
         )}
       </div>
+      <style>{`
+        @keyframes fadeinlog {
+          from { opacity:0; transform:translateY(16px);}
+          to { opacity:1; transform:none;}
+        }
+      `}</style>
     </div>
   );
 
@@ -205,7 +219,6 @@ export default function FileDetails({ file, onFileMoved, onFileDeleted }) {
             <button style={{ background: "#ffeaea", border: "1px solid #ffb3b3", borderRadius: 7, padding: "7px 18px", fontWeight: 600, cursor: "pointer", color: "#c71a1a" }} onClick={handleDelete}>🗑️ Elimina</button>
             <button style={{ background: "#eef6e6", border: "1px solid #a0c99e", borderRadius: 7, padding: "7px 18px", fontWeight: 600, cursor: "pointer" }} onClick={handleMove}>↔️ Sposta</button>
             <button style={{ background: "#e6f0fa", border: "1px solid #7bb5e8", borderRadius: 7, padding: "7px 18px", fontWeight: 600, cursor: "pointer" }} onClick={handleVersions}>🕓 Versioni</button>
-            {/* Qui puoi aggiungere altri pulsanti/shortcut */}
           </div>
         </div>
       </div>
