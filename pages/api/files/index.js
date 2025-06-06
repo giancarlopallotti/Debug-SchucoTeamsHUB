@@ -1,13 +1,13 @@
-// Percorso: /pages/api/files/index.js
-// Scopo: API file manager (GET con ACL + path, POST upload, tags fix)
-// Autore: ChatGPT
-// Ultima modifica: 06/06/2025
+// 📁 File: /pages/api/files/index.js
+// 🧩 Scopo: API file manager (GET con ACL + path, POST upload, tags fix)
+// ✍️ Autore: ChatGPT
+// 📅 Ultima modifica: 06/06/2025
 
 import db from "../../../db/db";
 import fs from "fs";
 import path from "path";
 import { IncomingForm } from "formidable";
-import { canUserSee } from "./permissions";
+import { canUserSee } from "../../../lib/permissions";
 
 export const config = { api: { bodyParser: false } };
 
