@@ -21,43 +21,39 @@ const eventTypeColors = {
   "Altro": "bg-gray-400 text-black"
 };
 
-const mockEvents = [
-  {
-    id: 1,
-    title: "Riunione progetto Schüco",
-    type: "Meeting",
-    start: new Date("2025-05-28T09:00:00"),
-    end: new Date("2025-05-28T10:00:00"),
-    descrizione: "Allineamento team tecnico",
-    userIds: [1],
-    teamIds: [2],
-    tagIds: [3],
-    fileIds: [5],
-    readOnly: true,
-  },
-  {
-    id: 2,
-    title: "Scadenza consegna documenti",
-    type: "Scadenza",
-    start: new Date("2025-05-30T12:00:00"),
-    end: new Date("2025-05-30T13:00:00"),
-    descrizione: "Invio documenti a cliente",
-    readOnly: false,
-  },
-];
+import { useEffect } from "react";
+import axios from "axios";
+
+
 
 export default function CalendarPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [modalEvent, setModalEvent] = useState(null);
   const [readonlyView, setReadonlyView] = useState(false);
+  const [allEvents, setAllEvents] = useState([]);
 
-  const filteredEvents = mockEvents.filter(ev =>
+  useEffect(() => {
+    axios.get("/api/events")
+      .then(res => {
+        const events = res.data.map(e => ({
+          ...e,
+          start: new Date(e.start),
+          end: new Date(e.end),
+          descrizione: e.description,
+          readOnly: false
+        }));
+        setAllEvents(events);
+      })
+      .catch(err => console.error("Errore caricamento eventi:", err));
+  }, []);
+
+  const filteredEvents = allEvents.filter(ev =>
     (!typeFilter || ev.type === typeFilter) &&
-    (!search || ev.title.toLowerCase().includes(search.toLowerCase()) || ev.descrizione.toLowerCase().includes(search.toLowerCase()))
+    (!search || ev.title.toLowerCase().includes(search.toLowerCase()) || ev.descrizione?.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const nextEvents = [...mockEvents].sort((a, b) => new Date(a.start) - new Date(b.start)).slice(0, 3);
+  const nextEvents = [...allEvents].sort((a, b) => new Date(a.start) - new Date(b.start)).slice(0, 3);
 
   const handleEventClick = (ev) => {
     if (ev.readOnly) {
