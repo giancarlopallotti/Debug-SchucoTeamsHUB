@@ -1,7 +1,9 @@
-// Percorso: /pages/components/FileDetails.js v6 – 08/06/2025
+// Percorso: /pages/components/FileDetails.js v7 – 09/06/2025
 import { useEffect, useState } from "react";
 import axios from "axios";
 import FileEditModal from "./FileEditModal";
+import FileVersionsModal from "./FileVersionsModal";
+import FileMoveModal from "./FileMoveModal";
 
 // Badge style + tooltip via title
 const badgeStyle = (bg, color = "#222") => ({
@@ -37,6 +39,8 @@ export default function FileDetails({ file, onFileMoved, onFileDeleted }) {
   const [logs, setLogs] = useState([]);
   const [showEdit, setShowEdit] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [folders, setFolders] = useState([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -80,9 +84,16 @@ export default function FileDetails({ file, onFileMoved, onFileDeleted }) {
     if (onFileDeleted) onFileDeleted();
   };
 
-  // Stub azioni future
-  const handleMove = () => alert("Funzione 'Sposta file' in sviluppo.");
+  // Versioni
   const handleVersions = () => setShowVersions(true);
+
+  // Sposta file
+  const openMoveModal = async () => {
+    // Carica cartelle solo quando serve (API: /api/folders, deve restituire [{id, name}])
+    const res = await axios.get("/api/folders");
+    setFolders(res.data);
+    setShowMoveModal(true);
+  };
 
   // Preview integrata
   const ext = getFileExtension(file.name);
@@ -99,7 +110,7 @@ export default function FileDetails({ file, onFileMoved, onFileDeleted }) {
     preview = <div style={{ color: "#2450a5", margin: "0 0 18px" }}>📝 File Word non visualizzabile in preview.</div>;
   }
 
-  // Tooltip helpers (esempio info dettagliata badge)
+  // Tooltip helpers
   const tooltipFor = (obj, tipo) => {
     if (!obj) return "";
     if (tipo === "tag") return `#${obj.name}\nCreato il: ${obj.created_at || "-"}`;
@@ -139,7 +150,7 @@ export default function FileDetails({ file, onFileMoved, onFileDeleted }) {
       </div>
     ) : null;
 
-  // Timeline log verticale moderna, colorata, animata
+  // Timeline log verticale moderna
   const renderLogs = logs => (
     <div style={{
       background: "#f8f8fc",
@@ -167,6 +178,7 @@ export default function FileDetails({ file, onFileMoved, onFileDeleted }) {
               {log.action === "download" && "⬇️"}
               {log.action === "update" && "✏️"}
               {log.action === "delete" && "🗑️"}
+              {log.action === "version_upload" && "🕓"}
             </div>
             <div style={{ fontSize: 15, marginLeft: 0, color: "#444", minHeight: 28, display: "flex", flexDirection: "column" }}>
               <span>
@@ -214,10 +226,10 @@ export default function FileDetails({ file, onFileMoved, onFileDeleted }) {
             {" | "} Cartella: <b>{file.folder_id || "root"}</b>
           </div>
           <div style={{ display: "flex", gap: 10, margin: "20px 0" }}>
-            <button style={{ background: "#f3f5ff", border: "1px solid #b3c6ff", borderRadius: 7, padding: "7px 18px", fontWeight: 600, cursor: "pointer" }} onClick={handleDownload}>⬇️ Download</button>
+            <button style={{ background: "#f3f5ff", border: "1px solid #b3c6ff", borderRadius: 7, padding: "7px 18px", fontWeight: 600, cursor: "pointer" }} onClick={handleDownload} disabled={downloading}>⬇️ Download</button>
             <button style={{ background: "#fdf0e9", border: "1px solid #fdc6b1", borderRadius: 7, padding: "7px 18px", fontWeight: 600, cursor: "pointer" }} onClick={() => setShowEdit(true)}>✏️ Modifica</button>
-            <button style={{ background: "#ffeaea", border: "1px solid #ffb3b3", borderRadius: 7, padding: "7px 18px", fontWeight: 600, cursor: "pointer", color: "#c71a1a" }} onClick={handleDelete}>🗑️ Elimina</button>
-            <button style={{ background: "#eef6e6", border: "1px solid #a0c99e", borderRadius: 7, padding: "7px 18px", fontWeight: 600, cursor: "pointer" }} onClick={handleMove}>↔️ Sposta</button>
+            <button style={{ background: "#ffeaea", border: "1px solid #ffb3b3", borderRadius: 7, padding: "7px 18px", fontWeight: 600, cursor: "pointer", color: "#c71a1a" }} onClick={handleDelete} disabled={deleting}>🗑️ Elimina</button>
+            <button style={{ background: "#eef6e6", border: "1px solid #a0c99e", borderRadius: 7, padding: "7px 18px", fontWeight: 600, cursor: "pointer" }} onClick={openMoveModal}>↔️ Sposta</button>
             <button style={{ background: "#e6f0fa", border: "1px solid #7bb5e8", borderRadius: 7, padding: "7px 18px", fontWeight: 600, cursor: "pointer" }} onClick={handleVersions}>🕓 Versioni</button>
           </div>
         </div>
@@ -243,33 +255,35 @@ export default function FileDetails({ file, onFileMoved, onFileDeleted }) {
       {/* TIMELINE LOG */}
       {renderLogs(logs)}
 
-      {/* MODAL */}
+      {/* MODAL: Modifica */}
       <FileEditModal
         file={file}
         isOpen={showEdit}
         onClose={() => setShowEdit(false)}
         onSaved={() => { setRefreshKey(k => k + 1); setShowEdit(false); }}
       />
-      {/* Versioni stub */}
+
+      {/* MODAL: Versioni */}
       {showVersions && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
-          background: "rgba(0,0,30,0.17)", zIndex: 60,
-          display: "flex", alignItems: "center", justifyContent: "center"
-        }}>
-          <div style={{
-            background: "#fff", borderRadius: 16, boxShadow: "0 2px 30px #b3baf0",
-            padding: 30, maxWidth: 460, minWidth: 340, minHeight: 150, position: "relative"
-          }}>
-            <button onClick={() => setShowVersions(false)} style={{
-              position: "absolute", right: 18, top: 10, background: "none", border: "none", fontSize: 24, cursor: "pointer"
-            }}>✖</button>
-            <h3 style={{ color: "#223", margin: 0, fontWeight: 700 }}>Storico versioni</h3>
-            <div style={{ marginTop: 16, color: "#888" }}>
-              <i>Integrazione versione file disponibile (stub, da sviluppare).</i>
-            </div>
-          </div>
-        </div>
+        <FileVersionsModal
+          file={file}
+          onClose={(refresh) => {
+            setShowVersions(false);
+            if (refresh) setRefreshKey(k => k + 1);
+          }}
+        />
+      )}
+
+      {/* MODAL: Sposta file */}
+      {showMoveModal && (
+        <FileMoveModal
+          file={file}
+          folders={folders}
+          onClose={(refresh) => {
+            setShowMoveModal(false);
+            if (refresh) setRefreshKey(k => k + 1);
+          }}
+        />
       )}
     </div>
   );

@@ -1,3 +1,8 @@
+// Percorso: /pages/components/FileEditModal.js
+// Scopo: Modifica dettagli file, multi-assegnazione tag, team, progetti, clienti, utenti
+// Autore: ChatGPT
+// Ultima modifica: 09/06/2025
+
 import { useState, useEffect } from "react";
 
 export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
@@ -25,7 +30,7 @@ export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
   const [note, setNote] = useState(file.note || "");
   const [saving, setSaving] = useState(false);
 
-  // Fetch disponibili
+  // Fetch disponibili (all'avvio)
   useEffect(() => {
     fetch("/api/tags").then(res => res.json()).then(list => setAvailableTags(list || []));
     fetch("/api/teams").then(res => res.json()).then(list => setAvailableTeams(list || []));
@@ -34,7 +39,7 @@ export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
     fetch("/api/users").then(res => res.json()).then(list => setAvailableUsers(list || []));
   }, []);
 
-  // Fetch associati
+  // Fetch entità già associate al file ogni volta che cambia
   useEffect(() => {
     if (!file?.id) return;
     fetch(`/api/files/relations?file_id=${file.id}`)
@@ -49,7 +54,7 @@ export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
       });
   }, [file]);
 
-  // Funzioni toggle/seleziona
+  // Toggle helper generico (aggiungi/rimuovi)
   function toggleItem(array, setArray, item, key = "id") {
     if (array.some(i => i[key] === item[key])) {
       setArray(array.filter(i => i[key] !== item[key]));
@@ -86,7 +91,7 @@ export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
     }
   };
 
-  // --- FILTRI ---
+  // FILTRI SEARCH
   const filteredTags = availableTags.filter(t => t.name.toLowerCase().includes(tagSearch.toLowerCase()));
   const filteredTeams = availableTeams.filter(t => t.name?.toLowerCase().includes(teamSearch.toLowerCase()));
   const filteredProjects = availableProjects.filter(p => (p.name || p.title || "").toLowerCase().includes(projectSearch.toLowerCase()));
@@ -94,6 +99,15 @@ export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
   const filteredUsers = availableUsers.filter(u =>
     (`${u.surname || ""} ${u.name || ""}`.toLowerCase().includes(userSearch.toLowerCase()))
   );
+
+  // BADGE COLORI
+  const colorMap = {
+    green: { bg: "#e6f6ea", txt: "#147c3b" },
+    blue: { bg: "#e3e6fa", txt: "#263b8a" },
+    yellow: { bg: "#fff3d2", txt: "#a47319" },
+    red: { bg: "#fce5e0", txt: "#a02222" },
+    violet: { bg: "#e7e0fa", txt: "#563fa6" }
+  };
 
   // --- RENDER BADGE ---
   const renderBadgeList = (label, array, setArray, color, type = "name") => (
@@ -125,15 +139,6 @@ export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
     </div>
   );
 
-  // Colori badge
-  const colorMap = {
-    green: { bg: "#e6f6ea", txt: "#147c3b" },
-    blue: { bg: "#e3e6fa", txt: "#263b8a" },
-    yellow: { bg: "#fff3d2", txt: "#a47319" },
-    red: { bg: "#fce5e0", txt: "#a02222" },
-    violet: { bg: "#e7e0fa", txt: "#563fa6" }
-  };
-
   // --- UI ---
   if (!isOpen) return null;
   return (
@@ -144,7 +149,7 @@ export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
         style={{ maxHeight: "90vh", overflow: "hidden" }}
       >
         <h2 className="text-2xl font-bold mb-2 text-blue-900">Modifica file</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6" style={{ maxHeight: "60vh", overflowY: "auto" }}>
           {/* Tag disponibili + associati */}
           <div>
             <label className="block text-sm font-semibold mb-1">Tag disponibili</label>
@@ -175,7 +180,6 @@ export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
             </div>
             {renderBadgeList("Tag", tags, setTags, "green")}
           </div>
-
           {/* Team */}
           <div>
             <label className="block text-sm font-semibold mb-1">Team disponibili</label>
@@ -206,7 +210,6 @@ export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
             </div>
             {renderBadgeList("Team", teams, setTeams, "blue")}
           </div>
-
           {/* Progetti */}
           <div>
             <label className="block text-sm font-semibold mb-1">Progetti disponibili</label>
@@ -237,7 +240,6 @@ export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
             </div>
             {renderBadgeList("Progetti", projects, setProjects, "yellow")}
           </div>
-
           {/* Aziende */}
           <div>
             <label className="block text-sm font-semibold mb-1">Aziende disponibili</label>
@@ -268,7 +270,6 @@ export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
             </div>
             {renderBadgeList("Aziende", clients, setClients, "red", "company")}
           </div>
-
           {/* Utenti */}
           <div>
             <label className="block text-sm font-semibold mb-1">Utenti disponibili</label>

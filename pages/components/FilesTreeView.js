@@ -6,32 +6,30 @@ function TreeNode({ node, onSelect, selectedId, reloadTree }) {
   const [expanded, setExpanded] = useState(false);
   const [children, setChildren] = useState({ folders: [], files: [] });
 
-  // Espande e carica figli
+  // Carica figli se non già espanso
   const handleExpand = async () => {
     if (!expanded) {
       const res = await axios.get("/api/folders", { params: { parent_id: node.id } });
-      setChildren(res.data);
+      setChildren({
+        folders: res.data?.folders || [],
+        files: res.data?.files || []
+      });
     }
     setExpanded(!expanded);
   };
 
-  // Reload forzato (es. dopo upload o nuova sottocartella)
+  // Reload forzato
   const forceReload = async () => {
     const res = await axios.get("/api/folders", { params: { parent_id: node.id } });
-    setChildren(res.data);
+    setChildren({
+      folders: res.data?.folders || [],
+      files: res.data?.files || []
+    });
     setExpanded(true);
   };
 
-  // Nuova sottocartella
-  const handleNewFolder = async () => {
-    const name = prompt("Nome nuova cartella:");
-    if (name) {
-      await axios.post("/api/folders", { name, parent_id: node.id, is_public: false });
-      forceReload();
-    }
-  };
+  // Altre funzioni (new, rename, delete) come prima
 
-  // Rinomina
   const [editing, setEditing] = useState(false);
   const [newName, setNewName] = useState(node.name);
   const handleRename = () => setEditing(true);
@@ -41,7 +39,14 @@ function TreeNode({ node, onSelect, selectedId, reloadTree }) {
     forceReload();
   };
 
-  // Elimina
+  const handleNewFolder = async () => {
+    const name = prompt("Nome nuova cartella:");
+    if (name) {
+      await axios.post("/api/folders", { name, parent_id: node.id, is_public: false });
+      forceReload();
+    }
+  };
+
   const handleDelete = async () => {
     if (window.confirm("Eliminare la cartella (e tutto il contenuto)?")) {
       await axios.delete("/api/folders", { data: { id: node.id } });
@@ -59,9 +64,7 @@ function TreeNode({ node, onSelect, selectedId, reloadTree }) {
             cursor: "pointer"
           }}
           onClick={() => onSelect(node)}
-        >
-          📁
-        </span>
+        >📁</span>
         {editing ? (
           <>
             <input value={newName} onChange={e => setNewName(e.target.value)} />
@@ -70,20 +73,14 @@ function TreeNode({ node, onSelect, selectedId, reloadTree }) {
         ) : (
           <span onClick={() => onSelect(node)} title={node.name} style={{ marginLeft: 6 }}>{node.name}</span>
         )}
-        <button
-          onClick={handleExpand}
-          style={{ marginLeft: 10 }}
-          title={expanded ? "Chiudi cartella" : "Espandi cartella"}
-        >
-          {expanded ? "-" : "+"}
-        </button>
+        <button onClick={handleExpand} style={{ marginLeft: 10 }} title={expanded ? "Chiudi cartella" : "Espandi cartella"}>{expanded ? "-" : "+"}</button>
         <button onClick={handleNewFolder} title="Nuova sottocartella" style={{ marginLeft: 5 }}>➕</button>
         <button onClick={handleRename} title="Rinomina cartella" style={{ marginLeft: 2 }}>✏️</button>
         <button onClick={handleDelete} title="Elimina cartella" style={{ marginLeft: 2, color: "red" }}>🗑️</button>
       </div>
       {expanded && (
         <div>
-          {children.folders.map((f) => (
+          {(children.folders || []).map((f) => (
             <TreeNode
               key={f.id}
               node={f}
@@ -92,15 +89,13 @@ function TreeNode({ node, onSelect, selectedId, reloadTree }) {
               reloadTree={reloadTree}
             />
           ))}
-          {children.files.map((file) => (
+          {(children.files || []).map((file) => (
             <div
               key={file.id}
               style={{ marginLeft: 20, color: "#357", cursor: "pointer" }}
               onClick={() => onSelect(file)}
               title={file.name + " (File)"}
-            >
-              📄 {file.name}
-            </div>
+            >📄 {file.name}</div>
           ))}
         </div>
       )}
@@ -113,7 +108,10 @@ export default function FilesTreeView({ onSelect, selectedId, reloadFlag }) {
 
   const reloadTree = () => {
     axios.get("/api/folders", { params: { parent_id: null } }).then((res) => {
-      setRootFolders(res.data);
+      setRootFolders({
+        folders: res.data?.folders || [],
+        files: res.data?.files || []
+      });
     });
   };
 
@@ -122,7 +120,6 @@ export default function FilesTreeView({ onSelect, selectedId, reloadFlag }) {
     // eslint-disable-next-line
   }, [reloadFlag]);
 
-  // Bottone Nuova cartella nella root
   const handleNewRootFolder = async () => {
     const name = prompt("Nome nuova cartella:");
     if (name) {
@@ -134,7 +131,7 @@ export default function FilesTreeView({ onSelect, selectedId, reloadFlag }) {
   return (
     <div>
       <button onClick={handleNewRootFolder} style={{ marginBottom: 10 }} title="Crea nuova cartella root">➕ Nuova cartella root</button>
-      {rootFolders.folders.map((f) => (
+      {(rootFolders.folders || []).map((f) => (
         <TreeNode
           key={f.id}
           node={f}
@@ -143,15 +140,13 @@ export default function FilesTreeView({ onSelect, selectedId, reloadFlag }) {
           reloadTree={reloadTree}
         />
       ))}
-      {rootFolders.files.map((file) => (
+      {(rootFolders.files || []).map((file) => (
         <div
           key={file.id}
           style={{ marginLeft: 20, color: "#357", cursor: "pointer" }}
           onClick={() => onSelect(file)}
           title={file.name + " (File)"}
-        >
-          📄 {file.name}
-        </div>
+        >📄 {file.name}</div>
       ))}
     </div>
   );
