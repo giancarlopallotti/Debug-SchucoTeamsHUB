@@ -1,100 +1,103 @@
-// pages/api/events/index.js
+// 📁 File: /pages/api/events/index.js
+// 🧩 Scopo: API gestione eventi (GET, POST, PUT) completo di relazioni Utenti, Team, Tag, File, Progetti, Clienti
+// ✍️ Autore: ChatGPT
+// 📅 Ultima modifica: 07/06/2025
 
-const db = require('../../../db/db');
+import db from "../../../db/db";
 
 export default function handler(req, res) {
-  if (req.method === 'GET') {
-    // Filtro opzionale: ?team=ID, ?user=ID, ?tag=ID
-    if (req.query.team) {
-      const rows = db.prepare(`
-        SELECT e.* FROM events e
-        JOIN events_teams et ON e.id = et.event_id
-        WHERE et.team_id = ?
-        ORDER BY e.start DESC
-      `).all(Number(req.query.team));
-      return res.status(200).json(rows);
+  /* ========================= GET ========================= */
+  if (req.method === "GET") {
+    const { id } = req.query;
+
+    //── GET /api/events?id=ID  → singolo evento dettagliato ──
+    if (id) {
+      const base = db.prepare("SELECT * FROM events WHERE id = ?").get(Number(id));
+      if (!base) return res.status(404).json({ error: "Evento non trovato" });
+
+      const idsFor = (table, col) =>
+        db.prepare(`SELECT ${col} FROM ${table} WHERE event_id = ?`).all(id).map(r => r[col]);
+
+      return res.status(200).json({
+        ...base,
+        userIds:    idsFor("events_users"   , "user_id"   ),
+        teamIds:    idsFor("events_teams"   , "team_id"   ),
+        tagIds:     idsFor("tags_events"    , "tag_id"    ),
+        fileIds:    idsFor("events_files"   , "file_id"   ),
+        projectIds: idsFor("events_projects", "project_id"),
+        clientIds:  idsFor("events_clients" , "client_id" )
+      });
     }
-    if (req.query.user) {
-      const rows = db.prepare(`
-        SELECT e.* FROM events e
-        JOIN events_users eu ON e.id = eu.event_id
-        WHERE eu.user_id = ?
-        ORDER BY e.start DESC
-      `).all(Number(req.query.user));
-      return res.status(200).json(rows);
-    }
-    if (req.query.tag) {
-      const tagIds = req.query.tag.split(',').map(Number);
-      const rows = db.prepare(`
-        SELECT DISTINCT e.* FROM events e
-        JOIN tags_events te ON e.id = te.event_id
-        WHERE te.tag_id IN (${tagIds.map(() => '?').join(',')})
-        ORDER BY e.start DESC
-      `).all(...tagIds);
-      return res.status(200).json(rows);
-    }
-    // Tutti gli eventi
-    const rows = db.prepare(`SELECT * FROM events ORDER BY start DESC`).all();
-    return res.status(200).json(rows);
+
+    //── GET /api/events  → lista base ──
+    const list = db.prepare("SELECT * FROM events ORDER BY start ASC").all();
+    return res.status(200).json(list);
   }
 
-  if (req.method === 'POST') {
-    // Crea nuovo evento (più associazioni opzionali)
-    const { title, description, start, end, creator_id, userIds, teamIds, fileIds, tagIds } = req.body;
-    if (!title || !start) {
-      return res.status(400).json({ message: "Titolo e data inizio obbligatori" });
-    }
-    const stmt = db.prepare(`
-      INSERT INTO events (title, description, start, end, creator_id)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-    const info = stmt.run(title, description || '', start, end || '', creator_id || null);
+  /* ========================= POST ======================== */
+  if (req.method === "POST") {
+    const {
+      title, description, start, end, status,
+      userIds = [], teamIds = [], tagIds = [], fileIds = [],
+      projectIds = [], clientIds = []
+    } = req.body;
+
+    if (!title || !start || !end)
+      return res.status(400).json({ error: "Campi obbligatori mancanti" });
+
+    const stmt = db.prepare("INSERT INTO events (title, description, start, end, status) VALUES (?, ?, ?, ?, ?)");
+    const info = stmt.run(title, description, start, end, status || "confermato");
     const eventId = info.lastInsertRowid;
 
-    // Associazioni
-    if (Array.isArray(userIds)) {
-      const s = db.prepare(`INSERT OR IGNORE INTO events_users (event_id, user_id) VALUES (?, ?)`);
-      userIds.forEach(uid => s.run(eventId, uid));
-    }
-    if (Array.isArray(teamIds)) {
-      const s = db.prepare(`INSERT OR IGNORE INTO events_teams (event_id, team_id) VALUES (?, ?)`);
-      teamIds.forEach(tid => s.run(eventId, tid));
-    }
-    if (Array.isArray(fileIds)) {
-      const s = db.prepare(`INSERT OR IGNORE INTO events_files (event_id, file_id) VALUES (?, ?)`);
-      fileIds.forEach(fid => s.run(eventId, fid));
-    }
-    if (Array.isArray(tagIds)) {
-      const s = db.prepare(`INSERT OR IGNORE INTO tags_events (tag_id, event_id) VALUES (?, ?)`);
-      tagIds.forEach(tid => s.run(tid, eventId));
-    }
-    return res.status(201).json({ id: eventId, message: "Evento creato!" });
+    saveRelations(eventId, { userIds, teamIds, tagIds, fileIds, projectIds, clientIds });
+    return res.status(200).json({ success: true, id: eventId });
   }
 
-  if (req.method === 'PUT') {
-    // Modifica evento base (non le associazioni, per semplicità)
-    const { id, title, description, start, end } = req.body;
-    if (!id || !title || !start) {
-      return res.status(400).json({ message: "ID, titolo e data inizio obbligatori" });
-    }
-    db.prepare(`
-      UPDATE events SET title = ?, description = ?, start = ?, end = ?, updated_at = datetime('now')
-      WHERE id = ?
-    `).run(title, description || '', start, end || '', id);
-    return res.status(200).json({ message: "Evento aggiornato" });
+  /* ========================= PUT ========================= */
+  if (req.method === "PUT") {
+    const {
+      id, title, description, start, end, status,
+      userIds = [], teamIds = [], tagIds = [], fileIds = [],
+      projectIds = [], clientIds = []
+    } = req.body;
+
+    if (!id || !title || !start || !end)
+      return res.status(400).json({ error: "Campi obbligatori mancanti" });
+
+    db.prepare("UPDATE events SET title = ?, description = ?, start = ?, end = ?, status = ? WHERE id = ?")
+      .run(title, description, start, end, status || "confermato", id);
+
+    deleteRelations(id);
+    saveRelations(id, { userIds, teamIds, tagIds, fileIds, projectIds, clientIds });
+
+    return res.status(200).json({ success: true });
   }
 
-  if (req.method === 'DELETE') {
-    // Elimina evento e tutte le sue associazioni
-    const { id } = req.body;
-    if (!id) return res.status(400).json({ message: "ID evento obbligatorio" });
-    db.prepare(`DELETE FROM events WHERE id = ?`).run(id);
-    db.prepare(`DELETE FROM events_users WHERE event_id = ?`).run(id);
-    db.prepare(`DELETE FROM events_teams WHERE event_id = ?`).run(id);
-    db.prepare(`DELETE FROM events_files WHERE event_id = ?`).run(id);
-    db.prepare(`DELETE FROM tags_events WHERE event_id = ?`).run(id);
-    return res.status(200).json({ message: "Evento eliminato" });
-  }
+  /* ======================= FALLBACK ====================== */
+  res.setHeader("Allow", ["GET", "POST", "PUT"]);
+  return res.status(405).end("Metodo non consentito");
+}
 
-  res.status(405).json({ message: "Metodo non consentito" });
+/* ------------------------ HELPERS ----------------------- */
+function deleteRelations(eventId) {
+  db.prepare("DELETE FROM events_users    WHERE event_id = ?").run(eventId);
+  db.prepare("DELETE FROM events_teams    WHERE event_id = ?").run(eventId);
+  db.prepare("DELETE FROM tags_events     WHERE event_id = ?").run(eventId);
+  db.prepare("DELETE FROM events_files    WHERE event_id = ?").run(eventId);
+  db.prepare("DELETE FROM events_projects WHERE event_id = ?").run(eventId);
+  db.prepare("DELETE FROM events_clients  WHERE event_id = ?").run(eventId);
+}
+
+function saveRelations(eventId, { userIds, teamIds, tagIds, fileIds, projectIds, clientIds }) {
+  const insertMany = (table, col, ids) => {
+    if (!Array.isArray(ids) || ids.length === 0) return;
+    const stmt = db.prepare(`INSERT OR IGNORE INTO ${table} (event_id, ${col}) VALUES (?, ?)`);
+    ids.forEach(val => stmt.run(eventId, val));
+  };
+  insertMany("events_users"   , "user_id"   , userIds);
+  insertMany("events_teams"   , "team_id"   , teamIds);
+  insertMany("tags_events"    , "tag_id"    , tagIds);
+  insertMany("events_files"   , "file_id"   , fileIds);
+  insertMany("events_projects", "project_id", projectIds);
+  insertMany("events_clients" , "client_id" , clientIds);
 }
