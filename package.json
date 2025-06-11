@@ -9,12 +9,14 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "archiver": "^7.0.1",
     "axios": "^1.9.0",
     "better-sqlite3": "^11.10.0",
     "cookie": "^1.0.2",
     "date-fns": "^4.1.0",
     "formidable": "^3.5.4",
     "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^0.514.0",
     "moment": "^2.30.1",
     "multiparty": "^4.2.3",
     "next": "^15.3.2",

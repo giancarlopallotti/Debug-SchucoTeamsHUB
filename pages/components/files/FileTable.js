@@ -1,35 +1,16 @@
 // Percorso: /components/files/FileTable.js
+
 import React, { useState } from "react";
+import { Download, Eye, Info, Pencil, Trash2 } from "lucide-react"; // Se non vuoi le icone: usa emoji "⬇️", "✏️" ecc.
 
 export default function FileTable({
   files, tags, teams, users, projects, clients,
-  selectedFiles, toggleSelect, selectAll, clearSelect, onEdit, onDownloadSelected,
-  currentPath = "Percorso corrente"
+  selectedFiles, toggleSelect, selectAll, clearSelect, onEdit,
+  onInfo, onPreview, onDelete
 }) {
-  // State ordinamento
-  const [sortField, setSortField] = useState("name");
-  const [sortDir, setSortDir] = useState("asc");
-  const [showActions, setShowActions] = useState(null); // file.id
+  const [downloading, setDownloading] = useState(false);
 
-  // Funzione ordinamento
-  const sortBy = (field) => {
-    if (sortField === field) setSortDir(dir => dir === "asc" ? "desc" : "asc");
-    else { setSortField(field); setSortDir("asc"); }
-  };
-  const sortedFiles = [...files].sort((a, b) => {
-    let valA = a[sortField] || "";
-    let valB = b[sortField] || "";
-    if (sortField === "created_at") {
-      valA = valA || ""; valB = valB || "";
-    }
-    if (typeof valA === "string") valA = valA.toLowerCase();
-    if (typeof valB === "string") valB = valB.toLowerCase();
-    if (valA < valB) return sortDir === "asc" ? -1 : 1;
-    if (valA > valB) return sortDir === "asc" ? 1 : -1;
-    return 0;
-  });
-
-  // Badge utility
+  // Badge e colori
   const badge = (label, color, key) => (
     <span
       key={key}
@@ -40,7 +21,7 @@ export default function FileTable({
         borderRadius: 8,
         fontSize: 12,
         fontWeight: 500,
-        margin: "0 2px 2px 0",
+        margin: "0 3px 3px 0",
         padding: "2.5px 9px"
       }}
     >{label}</span>
@@ -52,64 +33,96 @@ export default function FileTable({
     project: { bg: "#fff3d2", txt: "#a47319" },
     client: { bg: "#fce5e0", txt: "#a02222" }
   };
+  const multiline = arr => arr.length > 0
+    ? arr.map((el, i) => <div key={i} style={{ marginBottom: 2 }}>{el}</div>)
+    : <span style={{ color: "#bbb" }}>-</span>;
 
-  // ACTIONS MENU
-  const handleActions = (action, file) => {
-    setShowActions(null);
-    if (action === "preview") {
-      // TODO: implementa anteprima (modale, download, inline, ecc.)
-      window.open(`/api/files/preview/${file.id}`, "_blank");
+  // DOWNLOAD MULTIPLO ZIP
+  async function handleDownloadSelected() {
+    if (!selectedFiles.length) {
+      alert("Nessun file selezionato!");
+      return;
     }
-    if (action === "delete") {
-      if (window.confirm("Sei sicuro di voler eliminare questo file?")) {
-        // TODO: implementa eliminazione (API call, reload lista)
-        alert("Eliminazione file non ancora implementata!");
+    setDownloading(true);
+    try {
+      const res = await fetch("/api/files/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileIds: selectedFiles }),
+      });
+      if (!res.ok) {
+        alert("Errore nel download.");
+        return;
       }
+      const cd = res.headers.get('content-disposition');
+      let filename = "files.zip";
+      if (cd && /filename="?([^"]+)"?/.test(cd)) filename = cd.match(/filename="?([^"]+)"?/)[1];
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(false);
     }
-    if (action === "info") {
-      // TODO: apri un modale con i dettagli avanzati (utente creatore, download, release, etc)
-      alert("Visualizza info file: " + file.name);
-    }
-  };
+  }
 
-  // ICON SORT
-  const sortIcon = (field) =>
-    <span style={{ fontSize: 11, marginLeft: 3, color: "#aaa" }}>
-      {sortField !== field ? "⇅" : (sortDir === "asc" ? "▲" : "▼")}
-    </span>;
+  // DOWNLOAD SINGOLO FILE (usa nome reale dal DB, se fornito)
+  async function handleDownloadFile(file) {
+    if (!file || !file.id) return;
+    try {
+      // Chiede info reali (nome file) dal backend
+      const res = await fetch(`/api/files/info?file_id=${file.id}`);
+      if (!res.ok) {
+        window.open(`/api/files/raw/${file.id}`, "_blank"); // fallback
+        return;
+      }
+      const data = await res.json();
+      // Download vero
+      const rawRes = await fetch(`/api/files/raw/${file.id}`);
+      if (!rawRes.ok) {
+        alert("Errore nel download.");
+        return;
+      }
+      const blob = await rawRes.blob();
+      const a = document.createElement("a");
+      a.href = window.URL.createObjectURL(blob);
+      a.download = data.original_name || data.name || file.name || "file";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(a.href);
+    } catch {
+      window.open(`/api/files/raw/${file.id}`, "_blank");
+    }
+  }
 
   return (
     <div style={{ marginTop: 18 }}>
-      {/* Intestazione pro con breadcrumb */}
       <div style={{ marginBottom: 7, display: "flex", alignItems: "center" }}>
-        <span style={{
-          fontWeight: 600, fontSize: 20, color: "#223", marginRight: 16, display: "flex", alignItems: "center"
-        }}>
-          <span role="img" aria-label="folder" style={{ marginRight: 5 }}>📂</span>
-          {currentPath || "Percorso corrente"}
-        </span>
-        <b style={{ fontSize: 16, marginLeft: 12 }}>
-          File trovati: {files.length}
-        </b>
-        <button onClick={onDownloadSelected}
-          style={{
-            marginLeft: 14, fontSize: 14, background: "#e3e6fa",
-            border: "none", borderRadius: 8, padding: "6px 16px", cursor: "pointer", fontWeight: 600, color: "#1e39a5"
-          }}
-          disabled={!selectedFiles.length}
-        >
-          ⬇️ Download selezionati
-        </button>
+        <b style={{ fontSize: 18 }}>File trovati: {files.length}</b>
         <button onClick={selectAll} style={{ marginLeft: 18, fontSize: 13, background: "#eef3ff", border: "none", borderRadius: 7, padding: "5px 12px", cursor: "pointer" }}>Seleziona tutti</button>
         <button onClick={clearSelect} style={{ marginLeft: 7, fontSize: 13, background: "#ffeaea", border: "none", borderRadius: 7, padding: "5px 12px", cursor: "pointer", color: "#a02222" }}>Deseleziona</button>
         {selectedFiles.length > 0 && (
           <span style={{ marginLeft: 15, fontSize: 14, color: "#15671a" }}>
             {selectedFiles.length} selezionati
+            <button
+              onClick={handleDownloadSelected}
+              disabled={downloading}
+              style={{
+                marginLeft: 20, background: "#d2f5e3", border: "none", borderRadius: 7,
+                padding: "6px 16px", fontWeight: 600, color: "#177b29", cursor: "pointer"
+              }}>
+              <Download size={17} style={{ verticalAlign: "middle", marginRight: 6 }} />
+              {downloading ? "Download..." : "Scarica selezionati"}
+            </button>
           </span>
         )}
       </div>
-
-      {/* Tabella */}
       <div style={{
         overflowX: "auto",
         borderRadius: 8,
@@ -121,32 +134,29 @@ export default function FileTable({
           <thead style={{ background: "#f5f6fd" }}>
             <tr>
               <th style={{ width: 28 }}></th>
-              <th style={{ textAlign: "left", padding: "9px 8px", cursor: "pointer" }} onClick={() => sortBy("name")}>
-                Nome{sortIcon("name")}
-              </th>
-              <th style={{ textAlign: "left", padding: "9px 8px", cursor: "pointer" }} onClick={() => sortBy("note")}>
-                Note{sortIcon("note")}
-              </th>
+              <th style={{ textAlign: "left", padding: "9px 8px" }}>Nome</th>
+              <th style={{ textAlign: "left" }}>Note</th>
               <th>Tag</th>
               <th>Team</th>
               <th>Utenti</th>
               <th>Progetti</th>
               <th>Aziende</th>
-              <th style={{ cursor: "pointer" }} onClick={() => sortBy("created_at")}>Data{sortIcon("created_at")}</th>
+              <th>Data</th>
               <th>Azioni</th>
             </tr>
           </thead>
           <tbody>
-            {sortedFiles.length === 0 && (
+            {files.length === 0 && (
               <tr>
                 <td colSpan={10} style={{ textAlign: "center", color: "#aaa", padding: 28, fontSize: 16 }}>
                   Nessun file trovato.
                 </td>
               </tr>
             )}
-            {sortedFiles.map(file => (
+            {files.map(file => (
               <tr key={file.id} style={{
-                background: selectedFiles.includes(file.id) ? "#e8ebfa" : "transparent"
+                background: selectedFiles.includes(file.id) ? "#e8ebfa" : "transparent",
+                borderBottom: "1px solid #f0f1fa"
               }}>
                 <td style={{ textAlign: "center" }}>
                   <input
@@ -155,120 +165,102 @@ export default function FileTable({
                     onChange={() => toggleSelect(file.id)}
                   />
                 </td>
-                {/* NOME */}
-                <td style={{ fontWeight: 500, color: "#293562", padding: "7px 8px", verticalAlign: "top" }}>
+                <td style={{ fontWeight: 500, color: "#293562", padding: "7px 8px" }}>
                   {/\.(pdf)$/i.test(file.name) ? "📄"
                     : /\.(jpe?g|png|gif)$/i.test(file.name) ? "🖼️"
                     : /\.(xls|xlsx)$/i.test(file.name) ? "📊"
                     : "📎"
-                  } {file.name}
+                  }
+                  {" "}
+                  {file.name}
                 </td>
-                {/* NOTE */}
-                <td style={{ color: "#444", fontSize: 13, padding: "6px 4px", verticalAlign: "top" }}>
-                  {file.note || ""}
+                <td style={{ color: "#6c6c6c", fontSize: 13, maxWidth: 170 }}>
+                  {file.note || <span style={{ color: "#bbb" }}>-</span>}
                 </td>
-                {/* TAGS */}
-                <td style={{ padding: "6px 4px" }}>
-                  {(file.tags || []).length === 0 ? "-" : (file.tags || []).map(t =>
-                    <div key={t.id || t} style={{ marginBottom: 3 }}>
-                      {badge("#" + (t.name || t), colorMap.tag, t.id)}
-                    </div>
-                  )}
+                <td>{multiline((file.tags || []).map(t =>
+                  badge("#" + (t.name || t), colorMap.tag, t.id)
+                ))}</td>
+                <td>{multiline((file.teams || []).map(t =>
+                  badge(t.name || t, colorMap.team, t.id)
+                ))}</td>
+                <td>{multiline((file.users || []).map(u =>
+                  badge(
+                    (u.surname ? u.surname + " " : "") + u.name,
+                    colorMap.user,
+                    u.id
+                  )
+                ))}</td>
+                <td>{multiline((file.projects || []).map(p =>
+                  badge(p.title || p.name, colorMap.project, p.id)
+                ))}</td>
+                <td>{multiline((file.clients || []).map(c =>
+                  badge(c.company, colorMap.client, c.id)
+                ))}</td>
+                <td>
+                  <span style={{ color: "#666" }}>{file.created_at?.slice(0, 10) || "-"}</span>
                 </td>
-                {/* TEAM */}
-                <td style={{ padding: "6px 4px" }}>
-                  {(file.teams || []).length === 0 ? "-" : (file.teams || []).map(t =>
-                    <div key={t.id || t} style={{ marginBottom: 3 }}>
-                      {badge(t.name || t, colorMap.team, t.id)}
-                    </div>
-                  )}
-                </td>
-                {/* UTENTI */}
-                <td style={{ padding: "6px 4px" }}>
-                  {(file.users || []).length === 0 ? "-" : (file.users || []).map(u =>
-                    <div key={u.id} style={{ marginBottom: 3 }}>
-                      {badge(
-                        (u.surname ? u.surname + " " : "") + u.name,
-                        colorMap.user,
-                        u.id
-                      )}
-                    </div>
-                  )}
-                </td>
-                {/* PROGETTI */}
-                <td style={{ padding: "6px 4px" }}>
-                  {(file.projects || []).length === 0 ? "-" : (file.projects || []).map(p =>
-                    <div key={p.id || p} style={{ marginBottom: 3 }}>
-                      {badge(p.title || p.name, colorMap.project, p.id)}
-                    </div>
-                  )}
-                </td>
-                {/* AZIENDE */}
-                <td style={{ padding: "6px 4px" }}>
-                  {(file.clients || []).length === 0 ? "-" : (file.clients || []).map(c =>
-                    <div key={c.id || c} style={{ marginBottom: 3 }}>
-                      {badge(c.company, colorMap.client, c.id)}
-                    </div>
-                  )}
-                </td>
-                {/* DATA */}
-                <td style={{ color: "#666", fontSize: 13, verticalAlign: "top", padding: "6px 4px" }}>
-                  {file.created_at?.slice(0, 10) || "-"}
-                </td>
-                {/* AZIONI */}
-                <td style={{ position: "relative", textAlign: "center" }}>
+                <td>
+                  {/* Download diretto */}
                   <button
-                    onClick={() => setShowActions(file.id === showActions ? null : file.id)}
+                    onClick={() => handleDownloadFile(file)}
                     style={{
-                      background: "#fffbe7",
-                      border: "1px solid #ffe08a",
-                      borderRadius: 6,
-                      padding: "4px 8px",
-                      fontSize: 15,
-                      cursor: "pointer"
+                      background: "#f5fbf7", border: "1px solid #c9eccb",
+                      borderRadius: 6, padding: "4px 12px", marginRight: 4, fontSize: 15, cursor: "pointer"
                     }}
-                    title="Azioni"
-                  >⋮</button>
-                  {showActions === file.id && (
-                    <div
-                      style={{
-                        position: "absolute", right: 0, top: 30, zIndex: 20,
-                        background: "#fff", border: "1.5px solid #e3e6fa", borderRadius: 10,
-                        minWidth: 150, boxShadow: "0 2px 14px #eee"
-                      }}
-                      onMouseLeave={() => setShowActions(null)}
-                    >
-                      <button onClick={() => handleActions("preview", file)} style={menuBtnStyle}>Anteprima</button>
-                      <button onClick={() => handleActions("delete", file)} style={menuBtnStyle}>Elimina</button>
-                      <button onClick={() => handleActions("info", file)} style={menuBtnStyle}>Info</button>
-                    </div>
-                  )}
-                  <button onClick={() => onEdit(file)}
+                    title="Scarica file"
+                  >
+                    <Download size={17} style={{ verticalAlign: "middle", marginRight: 3 }} />
+                  </button>
+                  {/* Anteprima file */}
+                  <button onClick={() => onPreview?.(file)}
+                    style={{
+                      background: "#f6f6fc", border: "1px solid #e2e1ff",
+                      borderRadius: 6, padding: "4px 12px", marginRight: 4, fontSize: 15, cursor: "pointer"
+                    }}
+                    title="Anteprima file"
+                  > <Eye size={17} style={{ verticalAlign: "middle", marginRight: 3 }} />
+                  </button>
+                  {/* Info file */}
+                  <button onClick={() => onInfo?.(file)}
+                    style={{
+                      background: "#eafdfe", border: "1px solid #c1e8ed",
+                      borderRadius: 6, padding: "4px 12px", marginRight: 4, fontSize: 15, cursor: "pointer"
+                    }}
+                    title="Info file"
+                  > <Info size={17} style={{ verticalAlign: "middle", marginRight: 3 }} />
+                  </button>
+                  {/* Modifica */}
+                  <button onClick={() => onEdit?.(file)}
                     style={{
                       background: "#fffbe7", border: "1px solid #ffe08a",
-                      borderRadius: 6, padding: "4px 12px", marginLeft: 4, fontSize: 15, cursor: "pointer"
+                      borderRadius: 6, padding: "4px 12px", marginRight: 4, fontSize: 15, cursor: "pointer"
                     }}
                     title="Modifica dettagli"
-                  >✏️</button>
+                  > <Pencil size={17} style={{ verticalAlign: "middle", marginRight: 3 }} />
+                  </button>
+                  {/* Elimina */}
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Confermi eliminazione del file "${file.name}"?`))
+                        onDelete?.(file);
+                    }}
+                    style={{
+                      background: "#fef3f3", border: "1px solid #e9bebe",
+                      borderRadius: 6, padding: "4px 12px", fontSize: 15, cursor: "pointer", color: "#a02222"
+                    }}
+                    title="Elimina file"
+                  > <Trash2 size={17} style={{ verticalAlign: "middle", marginRight: 3 }} />
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      <style>{`
+        th { font-weight: 600; color: #344060; font-size: 15px; user-select: none }
+        th, td { vertical-align: top }
+      `}</style>
     </div>
   );
 }
-
-// Stile per bottoni menu azioni
-const menuBtnStyle = {
-  display: "block",
-  width: "100%",
-  textAlign: "left",
-  background: "none",
-  border: "none",
-  fontSize: 15,
-  padding: "10px 18px",
-  cursor: "pointer",
-  color: "#223"
-};
