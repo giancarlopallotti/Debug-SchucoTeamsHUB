@@ -1,47 +1,58 @@
-// Percorso: /pages/components/FileEditModal.js
+// Percorso: /pages/components/FileEditModal.js 
 // Scopo: Modifica dettagli file, multi-assegnazione tag, team, progetti, clienti, utenti
 // Autore: ChatGPT
-// Ultima modifica: 09/06/2025
+// Ultima modifica: 12/06/2025
 
 import { useState, useEffect } from "react";
+import LoadingSpinner from "../LoadingSpinner"; // occhio al path!
 
 export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
   // Stati per entità e filtri ricerca
   const [tags, setTags] = useState([]);
   const [availableTags, setAvailableTags] = useState([]);
   const [tagSearch, setTagSearch] = useState("");
-
   const [teams, setTeams] = useState([]);
   const [availableTeams, setAvailableTeams] = useState([]);
   const [teamSearch, setTeamSearch] = useState("");
-
   const [projects, setProjects] = useState([]);
   const [availableProjects, setAvailableProjects] = useState([]);
   const [projectSearch, setProjectSearch] = useState("");
-
   const [clients, setClients] = useState([]);
   const [availableClients, setAvailableClients] = useState([]);
   const [clientSearch, setClientSearch] = useState("");
-
   const [users, setUsers] = useState([]);
   const [availableUsers, setAvailableUsers] = useState([]);
   const [userSearch, setUserSearch] = useState("");
-
   const [note, setNote] = useState(file.note || "");
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Per gestione "dirty": se c'è una modifica non salvata
+  const [dirty, setDirty] = useState(false);
 
   // Fetch disponibili (all'avvio)
   useEffect(() => {
-    fetch("/api/tags").then(res => res.json()).then(list => setAvailableTags(list || []));
-    fetch("/api/teams").then(res => res.json()).then(list => setAvailableTeams(list || []));
-    fetch("/api/projects").then(res => res.json()).then(list => setAvailableProjects(list || []));
-    fetch("/api/clients").then(res => res.json()).then(list => setAvailableClients(list || []));
-    fetch("/api/users").then(res => res.json()).then(list => setAvailableUsers(list || []));
+    setLoading(true);
+    Promise.all([
+      fetch("/api/tags").then(res => res.json()),
+      fetch("/api/teams").then(res => res.json()),
+      fetch("/api/projects").then(res => res.json()),
+      fetch("/api/clients").then(res => res.json()),
+      fetch("/api/users").then(res => res.json()),
+    ]).then(([tags, teams, projects, clients, users]) => {
+      setAvailableTags(tags || []);
+      setAvailableTeams(teams || []);
+      setAvailableProjects(projects || []);
+      setAvailableClients(clients || []);
+      setAvailableUsers(users || []);
+      setLoading(false);
+    });
   }, []);
 
   // Fetch entità già associate al file ogni volta che cambia
   useEffect(() => {
     if (!file?.id) return;
+    setLoading(true);
     fetch(`/api/files/relations?file_id=${file.id}`)
       .then(res => res.json())
       .then(data => {
@@ -51,20 +62,16 @@ export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
         setClients(data.clients || []);
         setUsers(data.users || []);
         setNote(file.note || "");
+        setDirty(false);
+        setLoading(false);
       });
   }, [file]);
 
-  // Toggle helper generico (aggiungi/rimuovi)
-  function toggleItem(array, setArray, item, key = "id") {
-    if (array.some(i => i[key] === item[key])) {
-      setArray(array.filter(i => i[key] !== item[key]));
-    } else {
-      setArray([...array, item]);
-    }
-  }
-  function removeItem(array, setArray, item, key = "id") {
-    setArray(array.filter(i => i[key] !== item[key]));
-  }
+  // Dirty se cambia qualcosa
+  useEffect(() => {
+    setDirty(true);
+    // eslint-disable-next-line
+  }, [tags, teams, projects, clients, users, note]);
 
   // --- SALVA MODIFICHE ---
   const handleSubmit = async (e) => {
@@ -90,6 +97,26 @@ export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
       onClose();
     }
   };
+
+  // --- ANNULLA CON CONFERMA MODIFICHE ---
+  const handleCancel = () => {
+    if (dirty) {
+      if (!window.confirm("Sei sicuro di non voler annullare le modifiche?")) return;
+    }
+    onClose();
+  };
+
+  // Toggle helper generico (aggiungi/rimuovi)
+  function toggleItem(array, setArray, item, key = "id") {
+    if (array.some(i => i[key] === item[key])) {
+      setArray(array.filter(i => i[key] !== item[key]));
+    } else {
+      setArray([...array, item]);
+    }
+  }
+  function removeItem(array, setArray, item, key = "id") {
+    setArray(array.filter(i => i[key] !== item[key]));
+  }
 
   // FILTRI SEARCH
   const filteredTags = availableTags.filter(t => t.name.toLowerCase().includes(tagSearch.toLowerCase()));
@@ -141,14 +168,34 @@ export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
 
   // --- UI ---
   if (!isOpen) return null;
+
+  // Percorso completo (breadcrumb) da FileTreeView: file.path o file.fullPath
+  const filePath = file.fullPath || file.path || "";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 animate-fadein">
+      {loading && (
+        <div style={{
+          position: "absolute", left: 0, top: 0, width: "100%", height: "100%",
+          background: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10
+        }}>
+          <LoadingSpinner label="Caricamento..." />
+        </div>
+      )}
       <form
         className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl p-8 mx-2 relative flex flex-col gap-6"
         onSubmit={handleSubmit}
         style={{ maxHeight: "90vh", overflow: "hidden" }}
       >
-        <h2 className="text-2xl font-bold mb-2 text-blue-900">Modifica file</h2>
+        {/* Titolo file e percorso */}
+        <h2 className="text-2xl font-bold mb-2 text-blue-900">
+          {file.name}
+          {filePath && (
+            <span style={{ fontSize: 15, color: "#666", fontWeight: 400, marginLeft: 8 }}>
+              {filePath}
+            </span>
+          )}
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6" style={{ maxHeight: "60vh", overflowY: "auto" }}>
           {/* Tag disponibili + associati */}
           <div>
@@ -312,9 +359,9 @@ export default function FileEditModal({ file = {}, isOpen, onClose, onSaved }) {
           <button
             type="button"
             className="px-6 py-2 rounded-xl bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300 transition"
-            onClick={onClose}
+            onClick={handleCancel}
             disabled={saving}
-          >Chiudi</button>
+          >Annulla</button>
           <button
             type="submit"
             className="px-6 py-2 rounded-xl bg-blue-600 text-white font-semibold shadow hover:bg-blue-700 transition"
